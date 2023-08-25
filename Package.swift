@@ -34,7 +34,7 @@ let package = Package(
     .package(path: "./JSONRPC-DataChannel-UniSocket"),
     .package(path: "./JSONRPC-DataChannel-Actor"),
     // .package(path: "./LanguageClient"),
-    .package(path: "./hyloc")
+    .package(path: "./hylo")
   ],
   targets: [
 
@@ -45,7 +45,7 @@ let package = Package(
         "LanguageServerProtocol",
         "JSONRPC-DataChannel-UniSocket",
         "JSONRPC-DataChannel-Actor",
-        .product(name: "hc-lib", package: "hyloc"),
+        .product(name: "hc-lib", package: "hylo"),
         .product(name: "UniSocket", package: "swift-unisocket"),
         .product(name: "ProcessEnv", package: "ProcessEnv", condition: .when(platforms: [.macOS])),
       ],
