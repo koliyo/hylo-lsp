@@ -10,7 +10,7 @@ import Core
 import FrontEnd
 import IR
 
-let factorialUrl = URL.init(fileURLWithPath:"/Users/nils/Work/hylo-lsp/hyloc/Examples/factorial.hylo")
+let factorialUrl = URL.init(fileURLWithPath:"/Users/nils/Work/hylo-lsp/hylo/Examples/factorial.hylo")
 
 func RunHyloClientTests(_ clientChannel: DataChannel) async {
   do {

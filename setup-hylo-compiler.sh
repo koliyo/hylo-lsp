@@ -8,10 +8,10 @@ else
   BASE_DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 fi
 
-VAL_DIR=$BASE_DIR/val
+HYLO_DIR=$BASE_DIR/hylo
 
 
-cd $VAL_DIR
+cd $HYLO_DIR
 swift package resolve
 .build/checkouts/Swifty-LLVM/Tools/make-pkgconfig.sh llvm.pc
 
