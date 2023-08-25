@@ -1,0 +1,148 @@
+{
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "sourceLanguages": [
+        "swift"
+      ],
+      "name": "Debug val-lsp",
+      "program": "${workspaceFolder:val-lsp}/.build/debug/val-lsp",
+      "args": [],
+      "cwd": "${workspaceFolder:val-lsp}",
+      "preLaunchTask": "swift: Build Debug val-lsp"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "sourceLanguages": [
+        "swift"
+      ],
+      "name": "Release val-lsp",
+      "program": "${workspaceFolder:val-lsp}/.build/release/val-lsp",
+      "args": [],
+      "cwd": "${workspaceFolder:val-lsp}",
+      "preLaunchTask": "swift: Build Release val-lsp"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "sourceLanguages": [
+        "swift"
+      ],
+      "name": "Debug val-lsp-client",
+      "program": "${workspaceFolder:val-lsp}/.build/debug/val-lsp-client",
+      "args": [],
+      "cwd": "${workspaceFolder:val-lsp}",
+      "preLaunchTask": "swift: Build Debug val-lsp-client"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "sourceLanguages": [
+        "swift"
+      ],
+      "name": "Release val-lsp-client",
+      "program": "${workspaceFolder:val-lsp}/.build/release/val-lsp-client",
+      "args": [],
+      "cwd": "${workspaceFolder:val-lsp}",
+      "preLaunchTask": "swift: Build Release val-lsp-client"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "sourceLanguages": [
+        "swift"
+      ],
+      "name": "Debug val-lsp-executable",
+      "program": "${workspaceFolder:hylo-lsp}/.build/debug/val-lsp-executable",
+      "args": [],
+      "cwd": "${workspaceFolder:hylo-lsp}",
+      "preLaunchTask": "swift: Build Debug val-lsp-executable"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "sourceLanguages": [
+        "swift"
+      ],
+      "name": "Release val-lsp-executable",
+      "program": "${workspaceFolder:hylo-lsp}/.build/release/val-lsp-executable",
+      "args": [],
+      "cwd": "${workspaceFolder:hylo-lsp}",
+      "preLaunchTask": "swift: Build Release val-lsp-executable"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "sourceLanguages": [
+        "swift"
+      ],
+      "name": "Debug val-lsp-test-client",
+      "program": "${workspaceFolder:hylo-lsp}/.build/debug/val-lsp-test-client",
+      "args": [],
+      "cwd": "${workspaceFolder:hylo-lsp}",
+      "preLaunchTask": "swift: Build Debug val-lsp-test-client"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "sourceLanguages": [
+        "swift"
+      ],
+      "name": "Release val-lsp-test-client",
+      "program": "${workspaceFolder:hylo-lsp}/.build/release/val-lsp-test-client",
+      "args": [],
+      "cwd": "${workspaceFolder:hylo-lsp}",
+      "preLaunchTask": "swift: Build Release val-lsp-test-client"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "sourceLanguages": [
+        "swift"
+      ],
+      "name": "Debug hylo-lsp-executable",
+      "program": "${workspaceFolder:hylo-lsp}/.build/debug/hylo-lsp-executable",
+      "args": [],
+      "cwd": "${workspaceFolder:hylo-lsp}",
+      "preLaunchTask": "swift: Build Debug hylo-lsp-executable"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "sourceLanguages": [
+        "swift"
+      ],
+      "name": "Release hylo-lsp-executable",
+      "program": "${workspaceFolder:hylo-lsp}/.build/release/hylo-lsp-executable",
+      "args": [],
+      "cwd": "${workspaceFolder:hylo-lsp}",
+      "preLaunchTask": "swift: Build Release hylo-lsp-executable"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "sourceLanguages": [
+        "swift"
+      ],
+      "name": "Debug hylo-lsp-test-client",
+      "program": "${workspaceFolder:hylo-lsp}/.build/debug/hylo-lsp-test-client",
+      "args": [],
+      "cwd": "${workspaceFolder:hylo-lsp}",
+      "preLaunchTask": "swift: Build Debug hylo-lsp-test-client"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "sourceLanguages": [
+        "swift"
+      ],
+      "name": "Release hylo-lsp-test-client",
+      "program": "${workspaceFolder:hylo-lsp}/.build/release/hylo-lsp-test-client",
+      "args": [],
+      "cwd": "${workspaceFolder:hylo-lsp}",
+      "preLaunchTask": "swift: Build Release hylo-lsp-test-client"
+    }
+  ]
+}

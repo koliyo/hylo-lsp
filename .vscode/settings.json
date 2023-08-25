@@ -1,0 +1,12 @@
+{
+  "files.associations": {
+    "Dockerfile*": "dockerfile",
+    "*.agxPy": "python",
+    "*.agxLua": "lua",
+    "*.agxEntity": "xml",
+    "*.agxKernel": "xml",
+    "*.agxTask": "xml",
+    "*.agxComponent": "xml",
+    "__locale": "cpp"
+  }
+}

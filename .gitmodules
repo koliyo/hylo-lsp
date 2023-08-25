@@ -1,0 +1,18 @@
+[submodule "LanguageClient"]
+	path = LanguageClient
+	url = https://github.com/ChimeHQ/LanguageClient.git
+[submodule "LanguageServerProtocol"]
+	path = LanguageServerProtocol
+	url = https://github.com/ChimeHQ/LanguageServerProtocol.git
+[submodule "val"]
+	path = hyloc
+	url = https://github.com/val-lang/val.git
+[submodule "BlueSocket"]
+	path = BlueSocket
+	url = https://github.com/Kitura/BlueSocket.git
+[submodule "swift-unisocket"]
+	path = swift-unisocket
+	url = https://github.com/seznam/swift-unisocket.git
+[submodule "Swifty-LLVM"]
+	path = Swifty-LLVM
+	url = https://github.com/hylo-lang/Swifty-LLVM.git
