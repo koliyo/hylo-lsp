@@ -4,9 +4,9 @@
 [submodule "LanguageServerProtocol"]
 	path = LanguageServerProtocol
 	url = https://github.com/ChimeHQ/LanguageServerProtocol.git
-[submodule "val"]
-	path = hyloc
-	url = https://github.com/val-lang/val.git
+[submodule "hylo"]
+	path = hylo
+	url = https://github.com/koliyo/hylo.git
 [submodule "BlueSocket"]
 	path = BlueSocket
 	url = https://github.com/Kitura/BlueSocket.git
@@ -16,3 +16,6 @@
 [submodule "Swifty-LLVM"]
 	path = Swifty-LLVM
 	url = https://github.com/hylo-lang/Swifty-LLVM.git
+[submodule "hylo-lsp-vs-code"]
+	path = hylo-lsp-vs-code
+	url = git@github.com:koliyo/hylo-lsp-vs-code.git
