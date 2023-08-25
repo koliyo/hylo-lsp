@@ -20,8 +20,8 @@
 	path = hylo-lsp-vs-code
 	url = git@github.com:koliyo/hylo-lsp-vs-code.git
 [submodule "JSONRPC-DataChannel-UniSocket"]
-  path = JSONRPC-DataChannel-UniSocket
-  url = https://github.com/koliyo/JSONRPC-DataChannel-UniSocket.git
+	path = JSONRPC-DataChannel-UniSocket
+	url = https://github.com/koliyo/JSONRPC-DataChannel-UniSocket.git
 [submodule "JSONRPC-DataChannel-Actor"]
-  path = JSONRPC-DataChannel-Actor
-  url = https://github.com/koliyo/JSONRPC-DataChannel-Actor.git
+	path = JSONRPC-DataChannel-Actor
+	url = https://github.com/koliyo/JSONRPC-DataChannel-Actor.git
