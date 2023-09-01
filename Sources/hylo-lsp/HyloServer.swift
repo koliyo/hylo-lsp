@@ -16,6 +16,34 @@ public class LspState {
     self.ast = ast
     self.lsp = lsp
   }
+
+  var task: Task<TypedProgram, Error>?
+
+  public func buildProgram(_ inputs: [URL]) {
+    task = Task {
+      return try _buildProgram(inputs)
+    }
+  }
+
+  public func _buildProgram(_ inputs: [URL]) throws -> TypedProgram {
+    // let inputs = files.map { URL.init(fileURLWithPath: $0)}
+    let importBuiltinModule = false
+    let compileSequentially = false
+
+    var diagnostics = DiagnosticSet()
+    print("buildProgram: \(inputs)")
+
+    _ = try ast.makeModule(HyloNotificationHandler.productName, sourceCode: sourceFiles(in: inputs),
+    builtinModuleAccess: importBuiltinModule, diagnostics: &diagnostics)
+
+    let p = try TypedProgram(
+    annotating: ScopedProgram(ast), inParallel: !compileSequentially,
+    reportingDiagnosticsTo: &diagnostics,
+    tracingInferenceIf: nil)
+    print("program is built")
+    return p
+  }
+
 }
 
 public extension LanguageServerProtocol.LSPRange {
@@ -36,7 +64,8 @@ public extension LanguageServerProtocol.Position {
 }
 
 
-public struct ValNotificationHandler : NotificationHandler {
+public struct HyloNotificationHandler : NotificationHandler {
+  public let lsp: LspServer
   var state: LspState
   var ast: AST { state.ast }
   static let productName = "lsp-build"
@@ -69,8 +98,7 @@ public struct ValNotificationHandler : NotificationHandler {
 
   }
 
-  public func textDocumentDidOpen(_ params: DidOpenTextDocumentParams) async {
-    let uri = params.textDocument.uri
+  func buildDocument(_ uri: DocumentUri) async {
     print("textDocumentDidOpen: \(uri)")
     // print("lib uri: \(HyloModule.standardLibrary!.absoluteString)")
     // if uri.commonPrefix(with: HyloModule.standardLibrary!.absoluteString) == HyloModule.standardLibrary!.absoluteString {
@@ -79,14 +107,16 @@ public struct ValNotificationHandler : NotificationHandler {
     }
     else {
       // print("document is not lib")
-      // let inputs = [URL.init(string: uri)!]
+      let inputs = [URL.init(string: uri)!]
       // let importBuiltinModule = false
       // let compileSequentially = false
 
       // var diagnostics = DiagnosticSet()
 
+      state.buildProgram(inputs)
       // withErrorLogging {
-      //   _ = try state.ast.makeModule(ValNotificationHandler.productName, sourceCode: sourceFiles(in: inputs),
+      //   try state.buildProgram(inputs)
+      //   _ = try state.ast.makeModule(HyloNotificationHandler.productName, sourceCode: sourceFiles(in: inputs),
       //   builtinModuleAccess: importBuiltinModule, diagnostics: &diagnostics)
 
       //   state.program = try TypedProgram(
@@ -95,10 +125,15 @@ public struct ValNotificationHandler : NotificationHandler {
       //   tracingInferenceIf: nil)
       // }
     }
+
+  }
+
+  public func textDocumentDidOpen(_ params: DidOpenTextDocumentParams) async {
+    await buildDocument(params.textDocument.uri)
   }
 
   public func textDocumentDidChange(_ params: DidChangeTextDocumentParams) async {
-
+    await buildDocument(params.textDocument.uri)
   }
 
   public func textDocumentDidClose(_ params: DidCloseTextDocumentParams) async {
@@ -110,7 +145,7 @@ public struct ValNotificationHandler : NotificationHandler {
   }
 
   public func textDocumentDidSave(_ params: DidSaveTextDocumentParams) async {
-
+    await buildDocument(params.textDocument.uri)
   }
 
   public func protocolCancelRequest(_ params: CancelParams) async {
@@ -151,7 +186,20 @@ public struct ValNotificationHandler : NotificationHandler {
 
 }
 
-public struct ValRequestHandler : RequestHandler {
+public enum TokenType : UInt32, CaseIterable {
+  case type
+  case identifier
+  case variable
+  case function
+  case keyword
+
+  var description: String {
+      return String(describing: self)
+  }
+}
+
+public struct HyloRequestHandler : RequestHandler {
+  public let lsp: LspServer
   var state: LspState
   var ast: AST { state.ast }
   var program: TypedProgram? { state.program }
@@ -159,55 +207,36 @@ public struct ValRequestHandler : RequestHandler {
 
   private let serverInfo: ServerInfo
 
-  public init(serverInfo: ServerInfo, state: LspState) {
+  public init(lsp: LspServer, serverInfo: ServerInfo, state: LspState) {
+    self.lsp = lsp
     self.serverInfo = serverInfo
     self.state = state
   }
 
+
+
   private func getServerCapabilities() -> ServerCapabilities {
     var s = ServerCapabilities()
+    let documentSelector = DocumentFilter(pattern: "**/*.hylo")
+
+    // NOTE: Only need to register extensions
+    // The protocol defines a set of token types and modifiers but clients are allowed to extend these and announce the values they support in the corresponding client capability.
+    // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_semanticTokens
+    let tokenLedgend = SemanticTokensLegend(tokenTypes: TokenType.allCases.map { $0.description }, tokenModifiers: ["private", "public"])
+
     s.textDocumentSync = .optionA(TextDocumentSyncOptions(openClose: false, change: TextDocumentSyncKind.full, willSave: false, willSaveWaitUntil: false, save: nil))
     s.textDocumentSync = .optionB(TextDocumentSyncKind.full)
     s.definitionProvider = .optionA(true)
-    s.typeDefinitionProvider = .optionA(true)
+    // s.typeDefinitionProvider = .optionA(true)
     s.documentSymbolProvider = .optionA(true)
+    // s.semanticTokensProvider = .optionA(SemanticTokensOptions(legend: tokenLedgend, range: .optionA(true), full: .optionA(true)))
+    s.semanticTokensProvider = .optionB(SemanticTokensRegistrationOptions(documentSelector: [documentSelector], legend: tokenLedgend, range: .optionA(false), full: .optionA(true)))
 
     return s
   }
 
-  private func buildProgram(_ inputs: [URL]) async throws {
-    // let inputs = files.map { URL.init(fileURLWithPath: $0)}
-    let importBuiltinModule = false
-    let compileSequentially = false
-
-    var diagnostics = DiagnosticSet()
-    print("buildProgram: \(inputs)")
-
-    _ = try state.ast.makeModule(ValNotificationHandler.productName, sourceCode: sourceFiles(in: inputs),
-    builtinModuleAccess: importBuiltinModule, diagnostics: &diagnostics)
-
-    state.program = try TypedProgram(
-    annotating: ScopedProgram(state.ast), inParallel: !compileSequentially,
-    reportingDiagnosticsTo: &diagnostics,
-    tracingInferenceIf: nil)
-    print("program is built")
-  }
-
-
 
   public func initialize(_ params: InitializeParams) async -> Result<InitializationResponse, AnyJSONRPCResponseError> {
-    // do {
-    //   try await state.lsp.sendNotification(.windowShowMessage(ShowMessageParams(type: .warning, message: "foo")))
-    //   try await state.lsp.sendNotification(.windowLogMessage(LogMessageParams(type: .warning, message: "foo")))
-    // }
-    // catch {
-    //   print("error: \(error)")
-    // }
-
-    // print("sent log")
-    // fflush(stdout)
-
-
     let fm = FileManager.default
 
     if let rootUri = params.rootUri {
@@ -224,7 +253,7 @@ public struct ValRequestHandler : RequestHandler {
       }
 
       do {
-        try await buildProgram(items.map { path.appending(path: $0) })
+        state.program = try state._buildProgram(items.map { path.appending(path: $0) })
       }
       catch {
         return .failure(JSONRPCResponseError(code: ErrorCodes.ServerNotInitialized, message: "could not build rootUri directory: \(path), error: \(error)"))
@@ -234,6 +263,9 @@ public struct ValRequestHandler : RequestHandler {
     }
     else {
       // return .failure(JSONRPCResponseError(code: ErrorCodes.ServerNotInitialized, message: "expected rootUri parameter"))
+
+      print("init without rootUri")
+      fflush(stdout)
       return .success(InitializationResponse(capabilities: getServerCapabilities(), serverInfo: serverInfo))
     }
   }
@@ -242,56 +274,12 @@ public struct ValRequestHandler : RequestHandler {
 
   }
 
-  public func workspaceExecuteCommand(_ params: ExecuteCommandParams) async -> Result<LSPAny?, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func workspaceWillCreateFiles(_ params: CreateFilesParams) async -> Result<WorkspaceEdit?, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func workspaceWillRenameFiles(_ params: RenameFilesParams) async -> Result<WorkspaceEdit?, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func workspaceWillDeleteFiles(_ params: DeleteFilesParams) async -> Result<WorkspaceEdit?, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func workspaceSymbol(_ params: WorkspaceSymbolParams) async -> Result<WorkspaceSymbolResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func workspaceSymbolResolve(_ params: WorkspaceSymbol) async -> Result<WorkspaceSymbol, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func textDocumentWillSaveWaitUntil(_ params: WillSaveTextDocumentParams) async -> Result<[TextEdit]?, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func completion(_ params: CompletionParams) async -> Result<CompletionResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func completionItemResolve(_ params: CompletionItem) async -> Result<CompletionItem, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func hover(_ params: TextDocumentPositionParams) async -> Result<HoverResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func signatureHelp(_ params: TextDocumentPositionParams) async -> Result<SignatureHelpResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func declaration(_ params: TextDocumentPositionParams) async -> Result<DeclarationResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
   public func definition(_ params: TextDocumentPositionParams) async -> Result<DefinitionResponse, AnyJSONRPCResponseError> {
-    guard let program = program else {
+    guard let task = state.task else {
+      return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Expected an opened document"))
+    }
+
+    guard let program = try? await task.value else {
       return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Compilation missing"))
     }
 
@@ -303,35 +291,107 @@ public struct ValRequestHandler : RequestHandler {
     let pos = params.position
 
     let p = SourcePosition(line: pos.line+1, column: pos.character+1, in: f)
-    print("p: \(p)")
+    print("Look for symbol definition at position: \(p)")
 
     if let id = ast.findNode(p) {
-      print("found: \(id), in num nodes: \(ast.numNodes)")
+      // print("found: \(id), in num nodes: \(ast.numNodes)")
       // let s = program.nodeToScope[id]
       let node = ast[id]
       print("Found node: \(node), id: \(id)")
+
+      let locationFromDecl = { (d: AnyDeclID) in
+        let range = ast[d].site
+        let selectionRange = LSPRange(nameRange(of: d) ?? range)
+        return LocationLink(targetUri: url.absoluteString, targetRange: LSPRange(range), targetSelectionRange: selectionRange)
+      }
+
+      let locationResponseFromDecl = { (d: AnyDeclID) -> DefinitionResponse in
+        let location = locationFromDecl(d)
+        return .optionC([location])
+      }
+
+      if let d = AnyDeclID(id) {
+        return .success(locationResponseFromDecl(d))
+      }
 
       if let n = NameExpr.ID(id) {
         // let d = program[n].referredDecl
         let d = program.referredDecl[n]
 
-        // print("d: \(d)")
-        if case let .direct(d, args) = d {
-          print("d: \(d), generic args: \(args), name: \(program.name(of: d)!)")
+        if d == nil {
+          if let t = program.exprType[n] {
+
+            switch t.base {
+            case let u as ProductType:
+              return .success(locationResponseFromDecl(AnyDeclID(u.decl)))
+            case let u as TypeAliasType:
+              return .success(locationResponseFromDecl(AnyDeclID(u.decl)))
+            case let u as AssociatedTypeType:
+              return .success(locationResponseFromDecl(AnyDeclID(u.decl)))
+            case let u as GenericTypeParameterType:
+              return .success(locationResponseFromDecl(AnyDeclID(u.decl)))
+            case let u as NamespaceType:
+              return .success(locationResponseFromDecl(AnyDeclID(u.decl)))
+            case let u as TraitType:
+              return .success(locationResponseFromDecl(AnyDeclID(u.decl)))
+            default:
+              fatalError("not implemented")
+            }
+          }
+
+          if let x = AnyPatternID(id) {
+            print("pattern: \(x)")
+          }
+
+          if let s = program.nodeToScope[id] {
+            print("scope: \(s)")
+            if let decls = program.scopeToDecls[s] {
+              for d in decls {
+                  if let t = program.declType[d] {
+                    print("decl: \(d), type: \(t)")
+                  }
+              }
+            }
+
+
+            if let fn = ast[s] as? FunctionDecl {
+              print("TODO: Need to figure out how to get resolved return type of function signature: \(fn.site)")
+              return .success(nil)
+              // return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO: Need to figure out how to get resolved return type of function signature: \(fn.site)"))
+            }
+          }
+
+          // return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Internal error, must be able to resolve declaration"))
+          await logInternalError("Internal error, must be able to resolve declaration")
+          return .success(nil)
+        }
+
+        switch d {
+        case let .constructor(d, _):
+          let initializer = ast[d]
+          let range = ast[d].site
+          let selectionRange = LSPRange(initializer.introducer.site)
+          let response = LocationLink(targetUri: url.absoluteString, targetRange: LSPRange(range), targetSelectionRange: selectionRange)
+          return .success(.optionC([response]))
+        case let .direct(d, args):
+          print("d: \(d), generic args: \(args), name: \(program.name(of: d) ?? "__noname__")")
+          fflush(stdout)
           // let fnNode = ast[d]
           // let range = LSPRange(hylocRange: fnNode.site)
-          let range = nameRange(of: d)
-          let response = Location(uri: url.absoluteString, range: LSPRange(range!))
-          return .success(.optionA(response))
+          return .success(locationResponseFromDecl(d))
           // if let fid = FunctionDecl.ID(d) {
           //   let f = sourceModule.functions[Function.ID(fid)]!
           //   print("Function: \(f)")
           // }
+        default:
+          await logInternalError("Unknown declaration kind: \(d!)")
         }
+
       }
+
     }
 
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
+    return .success(nil)
   }
 
   public func nameRange(of d: AnyDeclID) -> SourceRange? {
@@ -346,149 +406,98 @@ public struct ValRequestHandler : RequestHandler {
       return ast[MethodDecl.ID(d)!].identifier.site
     case SubscriptImpl.self:
       return ast[SubscriptDecl.ID(d)!].site
+    case VarDecl.self:
+      return ast[VarDecl.ID(d)!].identifier.site
+    case ParameterDecl.self:
+      return ast[ParameterDecl.ID(d)!].identifier.site
     default:
       return nil
     }
   }
 
-
-  public func typeDefinition(_ params: TextDocumentPositionParams) async -> Result<TypeDefinitionResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func implementation(_ params: TextDocumentPositionParams) async -> Result<ImplementationResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func diagnostics(_ params: DocumentDiagnosticParams) async -> Result<DocumentDiagnosticReport, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func documentHighlight(_ params: DocumentHighlightParams) async -> Result<DocumentHighlightResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
+  func kind(_ id: AnyDeclID) -> SymbolKind {
+    switch id.kind {
+      case VarDecl.self: return SymbolKind.field
+      case FunctionDecl.self: return SymbolKind.function
+      case ProductTypeDecl.self: return SymbolKind.struct
+      default: return SymbolKind.object
+    }
   }
 
   public func documentSymbol(_ params: DocumentSymbolParams) async -> Result<DocumentSymbolResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
+    guard let task = state.task else {
+      return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Expected an opened document"))
+    }
+
+    do {
+      let program = try await task.value
+      let symbols = ast.listSymbols(params.textDocument.uri)
+      var lspSymbols: [DocumentSymbol] = []
+      for s in symbols {
+        var detail: String? = nil
+
+        if let type = program.declType[s] {
+          // detail = program.name(of: type)
+          detail = type.description
+          // detail = "\(type.base)"
+        }
+
+        let declRange = ast[s].site
+        let range = LSPRange(declRange)
+        let selectionRange = LSPRange(nameRange(of: s) ?? declRange)
+
+        if let name = program.name(of: s) {
+          lspSymbols.append(DocumentSymbol(
+            name: name.stem,
+            detail: detail,
+            kind: kind(s),
+            range: range,
+            selectionRange: selectionRange
+          ))
+        }
+        else {
+          print("Symbol declaration does not have a name: \(s)")
+        }
+      }
+
+      return .success(.optionA(lspSymbols))
+    }
+    catch {
+      await logInternalError("Error during symbol resolution: \(error)")
+      return .success(nil)
+    }
   }
 
-  public func codeAction(_ params: CodeActionParams) async -> Result<CodeActionResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func codeActionResolve(_ params: CodeAction) async -> Result<CodeAction, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func codeLens(_ params: CodeLensParams) async -> Result<CodeLensResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func codeLensResolve(_ params: CodeLens) async -> Result<CodeLens, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func selectionRange(_ params: SelectionRangeParams) async -> Result<SelectionRangeResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func linkedEditingRange(_ params: LinkedEditingRangeParams) async -> Result<LinkedEditingRangeResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func prepareCallHierarchy(_ params: CallHierarchyPrepareParams) async -> Result<CallHierarchyPrepareResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func prepareRename(_ params: PrepareRenameParams) async -> Result<PrepareRenameResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func rename(_ params: RenameParams) async -> Result<RenameResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func documentLink(_ params: DocumentLinkParams) async -> Result<DocumentLinkResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func documentLinkResolve(_ params: DocumentLink) async -> Result<DocumentLink, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func documentColor(_ params: DocumentColorParams) async -> Result<DocumentColorResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func colorPresentation(_ params: ColorPresentationParams) async -> Result<ColorPresentationResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func formatting(_ params: DocumentFormattingParams) async -> Result<FormattingResult, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func rangeFormatting(_ params: DocumentRangeFormattingParams) async -> Result<FormattingResult, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func onTypeFormatting(_ params: DocumentOnTypeFormattingParams) async -> Result<FormattingResult, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func references(_ params: ReferenceParams) async -> Result<ReferenceResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func foldingRange(_ params: FoldingRangeParams) async -> Result<FoldingRangeResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func moniker(_ params: MonkierParams) async -> Result<MonikerResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
+  // https://code.visualstudio.com/api/language-extensions/semantic-highlight-guide
+  // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_semanticTokens
   public func semanticTokensFull(_ params: SemanticTokensParams) async -> Result<SemanticTokensResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
+    guard let _ = state.task else {
+      return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Expected an opened document"))
+    }
+
+
+    let tokens = ast.getSematicTokens(params.textDocument.uri)
+    return .success(SemanticTokens(tokens: tokens))
   }
 
-  public func semanticTokensFullDelta(_ params: SemanticTokensDeltaParams) async -> Result<SemanticTokensDeltaResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func semanticTokensRange(_ params: SemanticTokensRangeParams) async -> Result<SemanticTokensResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func callHierarchyIncomingCalls(_ params: CallHierarchyIncomingCallsParams) async -> Result<CallHierarchyIncomingCallsResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func callHierarchyOutgoingCalls(_ params: CallHierarchyOutgoingCallsParams) async -> Result<CallHierarchyOutgoingCallsResponse, AnyJSONRPCResponseError> {
-    return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO"))
-  }
-
-  public func custom(_ method: String, _ params: LSPAny) async -> Result<LSPAny, AnyJSONRPCResponseError>{
-    print("custom method: \(method), params: \(params)")
-    return .success(params)
-  }
 }
 
 
 public actor HyloServer {
-   let lsp: LspServer
+  let lsp: LspServer
   // private var ast: AST
   private var state: LspState
-  private let requestHandler: ValRequestHandler
-  private let notificationHandler: ValNotificationHandler
+  private let requestHandler: HyloRequestHandler
+  private let notificationHandler: HyloNotificationHandler
+
 
   public init(_ dataChannel: DataChannel, useStandardLibrary: Bool = true) {
     lsp = LspServer(dataChannel)
-    let serverInfo = ServerInfo(name: "val", version: "0.1")
+    let serverInfo = ServerInfo(name: "hylo", version: "0.1.0")
     let ast = useStandardLibrary ? AST.standardLibrary : AST.coreModule
     self.state = LspState(ast: ast, lsp: lsp)
-    requestHandler = ValRequestHandler(serverInfo: serverInfo, state: state)
-    notificationHandler = ValNotificationHandler(state: state)
+    requestHandler = HyloRequestHandler(lsp: lsp, serverInfo: serverInfo, state: state)
+    notificationHandler = HyloNotificationHandler(lsp: lsp, state: state)
 
     // Task {
 		// 	await monitorRequests()
@@ -500,8 +509,10 @@ public actor HyloServer {
   }
 
   public func run() async {
+    print("starting server")
     async let t1: () = monitorRequests()
     async let t2: () = monitorNotifications()
+    async let t3: () = monitorErrors()
 
     // do {
     //   // try await lsp.sendNotification(.windowShowMessage(ShowMessageParams(type: .warning, message: "foo")))
@@ -511,16 +522,22 @@ public actor HyloServer {
     //   print("error: \(error)")
     // }
 
-    _ = await [t1, t2]
+    _ = await [t1, t2, t3]
   }
 
-  public func monitorRequests() async {
+  func monitorErrors() async {
+    for await error in lsp.errorSequence {
+      print("LSP stream error: \(error)")
+    }
+  }
+
+  func monitorRequests() async {
     for await request in lsp.requestSequence {
       await requestHandler.handleRequest(request)
     }
   }
 
-  public func monitorNotifications() async {
+  func monitorNotifications() async {
     for await notification in lsp.notificationSequence {
       await notificationHandler.handleNotification(notification)
     }

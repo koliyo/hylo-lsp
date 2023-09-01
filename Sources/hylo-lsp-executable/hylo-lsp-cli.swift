@@ -5,6 +5,7 @@ import LanguageServerProtocol
 import JSONRPC
 import UniSocket
 import JSONRPC_DataChannel_UniSocket
+import JSONRPC_DataChannel_StdioPipe
 import ArgumentParser
 import hylo_lsp
 
@@ -39,7 +40,9 @@ struct HyloLspCommand: AsyncParsableCommand {
         fflush(stdout)
 
         if stdio {
-          throw ValidationError("TODO: stdio transport")
+          let channel = DataChannel.stdioPipe()
+          let server = HyloServer(channel)
+          await server.run()
         }
         else if let socket = socket {
           // throw ValidationError("TODO: socket transport: \(socket)")

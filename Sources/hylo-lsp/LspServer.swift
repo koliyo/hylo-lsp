@@ -18,6 +18,7 @@ public protocol Server {
 
 	var notificationSequence: NotificationSequence { get }
 	var requestSequence: RequestSequence { get }
+  var errorSequence: JSONRPCSession.ErrorSequence { get }
 
 	func sendNotification(_ notif: ServerNotification) async throws
 	func sendRequest<Response: Decodable & Sendable>(_ request: ServerRequest) async throws -> Response
@@ -26,32 +27,25 @@ public protocol Server {
 public actor LspServer : Server {
 	public let notificationSequence: NotificationSequence
 	public let requestSequence: RequestSequence
+  public let errorSequence: JSONRPCSession.ErrorSequence
+  // public nonisolated let errorSequence: JSONRPCSession.ErrorSequence { session.errorSequence }
 
 	private let notificationContinuation: NotificationSequence.Continuation
 	private let requestContinuation: RequestSequence.Continuation
+	private let errorContinuation: JSONRPCSession.ErrorSequence.Continuation
 
 	private let session: JSONRPCSession
 	private var notificationTask: Task<Void, Never>?
 	private var requestTask: Task<Void, Never>?
+	private var errorTask: Task<Void, Never>?
 
 	public init(_ dataChannel: DataChannel) {
-		self.session = JSONRPCSession(channel: dataChannel)
+		self.session = JSONRPCSession(channel: dataChannel.withMessageFraming())
 
-		// this is annoying, but temporary
-#if compiler(>=5.9)
 		(self.notificationSequence, self.notificationContinuation) = NotificationSequence.makeStream()
 		(self.requestSequence, self.requestContinuation) = RequestSequence.makeStream()
-#else
-		var escapedNoteContinuation: NotificationSequence.Continuation?
+		(self.errorSequence, self.errorContinuation) = JSONRPCSession.ErrorSequence.makeStream()
 
-		self.notificationSequence = NotificationSequence { escapedNoteContinuation = $0 }
-		self.notificationContinuation = escapedNoteContinuation!
-
-		var escapedRequestContinuation: RequestSequence.Continuation?
-
-		self.requestSequence = RequestSequence { escapedRequestContinuation = $0 }
-		self.requestContinuation = escapedRequestContinuation!
-#endif
 		Task {
 			await startMonitoringSession()
 		}
@@ -63,6 +57,9 @@ public actor LspServer : Server {
 
 		requestTask?.cancel()
 		requestContinuation.finish()
+
+    errorTask?.cancel()
+		errorContinuation.finish()
 	}
 
 
@@ -90,6 +87,19 @@ public actor LspServer : Server {
 
 			self?.requestContinuation.finish()
 		}
+
+		let errorSequence = await session.errorSequence
+
+		self.errorTask = Task { [weak self] in
+			for await err in errorSequence {
+        guard let self = self else { break }
+
+        self.errorContinuation.yield(err)
+			}
+
+			self?.errorContinuation.finish()
+		}
+
 	}
 
 

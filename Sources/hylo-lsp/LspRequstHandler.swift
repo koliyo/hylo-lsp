@@ -1,8 +1,9 @@
+import Foundation
 import JSONRPC
 import LanguageServerProtocol
 
 
-public protocol RequestHandler {
+public protocol RequestHandler : ProtocolHandler {
   typealias Handler = ClientRequest.Handler;
 
   func initialize(_ params: InitializeParams) async -> Result<InitializationResponse, AnyJSONRPCResponseError>
@@ -55,6 +56,7 @@ public protocol RequestHandler {
 public extension RequestHandler {
   func handleRequest(_ request: ClientRequest) async {
     print("request: \(request.method)")
+    fflush(stdout)
 
     switch request {
     case let .initialize(params, handler):
@@ -149,4 +151,58 @@ public extension RequestHandler {
       await handler(await custom(method, params))
     }
   }
+}
+
+
+let NotImplementedError = AnyJSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO")
+
+/// Provide default implementations for all protocol methods
+/// We do this since the handler only need to support a subset, based on dynamically registered capabilities
+public extension RequestHandler {
+
+  func initialize(_ params: InitializeParams) async -> Result<InitializationResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func shutdown() async { }
+  func workspaceExecuteCommand(_ params: ExecuteCommandParams) async -> Result<LSPAny?, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func workspaceWillCreateFiles(_ params: CreateFilesParams) async -> Result<WorkspaceEdit?, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func workspaceWillRenameFiles(_ params: RenameFilesParams) async -> Result<WorkspaceEdit?, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func workspaceWillDeleteFiles(_ params: DeleteFilesParams) async -> Result<WorkspaceEdit?, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func workspaceSymbol(_ params: WorkspaceSymbolParams) async -> Result<WorkspaceSymbolResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func workspaceSymbolResolve(_ params: WorkspaceSymbol) async -> Result<WorkspaceSymbol, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func textDocumentWillSaveWaitUntil(_ params: WillSaveTextDocumentParams) async -> Result<[TextEdit]?, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func completion(_ params: CompletionParams) async -> Result<CompletionResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func completionItemResolve(_ params: CompletionItem) async -> Result<CompletionItem, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func hover(_ params: TextDocumentPositionParams) async -> Result<HoverResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func signatureHelp(_ params: TextDocumentPositionParams) async -> Result<SignatureHelpResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func declaration(_ params: TextDocumentPositionParams) async -> Result<DeclarationResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func definition(_ params: TextDocumentPositionParams) async -> Result<DefinitionResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func typeDefinition(_ params: TextDocumentPositionParams) async -> Result<TypeDefinitionResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func implementation(_ params: TextDocumentPositionParams) async -> Result<ImplementationResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func diagnostics(_ params: DocumentDiagnosticParams) async -> Result<DocumentDiagnosticReport, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func documentHighlight(_ params: DocumentHighlightParams) async -> Result<DocumentHighlightResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func documentSymbol(_ params: DocumentSymbolParams) async -> Result<DocumentSymbolResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func codeAction(_ params: CodeActionParams) async -> Result<CodeActionResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func codeActionResolve(_ params: CodeAction) async -> Result<CodeAction, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func codeLens(_ params: CodeLensParams) async -> Result<CodeLensResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func codeLensResolve(_ params: CodeLens) async -> Result<CodeLens, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func selectionRange(_ params: SelectionRangeParams) async -> Result<SelectionRangeResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func linkedEditingRange(_ params: LinkedEditingRangeParams) async -> Result<LinkedEditingRangeResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func prepareCallHierarchy(_ params: CallHierarchyPrepareParams) async -> Result<CallHierarchyPrepareResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func prepareRename(_ params: PrepareRenameParams) async -> Result<PrepareRenameResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func rename(_ params: RenameParams) async -> Result<RenameResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func documentLink(_ params: DocumentLinkParams) async -> Result<DocumentLinkResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func documentLinkResolve(_ params: DocumentLink) async -> Result<DocumentLink, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func documentColor(_ params: DocumentColorParams) async -> Result<DocumentColorResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func colorPresentation(_ params: ColorPresentationParams) async -> Result<ColorPresentationResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func formatting(_ params: DocumentFormattingParams) async -> Result<FormattingResult, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func rangeFormatting(_ params: DocumentRangeFormattingParams) async -> Result<FormattingResult, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func onTypeFormatting(_ params: DocumentOnTypeFormattingParams) async -> Result<FormattingResult, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func references(_ params: ReferenceParams) async -> Result<ReferenceResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func foldingRange(_ params: FoldingRangeParams) async -> Result<FoldingRangeResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func moniker(_ params: MonkierParams) async -> Result<MonikerResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func semanticTokensFull(_ params: SemanticTokensParams) async -> Result<SemanticTokensResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func semanticTokensFullDelta(_ params: SemanticTokensDeltaParams) async -> Result<SemanticTokensDeltaResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func semanticTokensRange(_ params: SemanticTokensRangeParams) async -> Result<SemanticTokensResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func callHierarchyIncomingCalls(_ params: CallHierarchyIncomingCallsParams) async -> Result<CallHierarchyIncomingCallsResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func callHierarchyOutgoingCalls(_ params: CallHierarchyOutgoingCallsParams) async -> Result<CallHierarchyOutgoingCallsResponse, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
+  func custom(_ method: String, _ params: LSPAny) async -> Result<LSPAny, AnyJSONRPCResponseError> { .failure(NotImplementedError) }
 }

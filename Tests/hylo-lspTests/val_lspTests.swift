@@ -1,5 +1,5 @@
 import XCTest
-@testable import val_lsp
+@testable import hylo_lsp
 
 final class val_lspTests: XCTestCase {
     func testExample() throws {

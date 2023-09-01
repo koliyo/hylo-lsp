@@ -14,7 +14,7 @@ import FrontEnd
 import IR
 
 
-let pipePath = "/tmp/my_socket"
+let pipePath = "/tmp/my.sock"
 
 @main
 struct HyloLspCommand: AsyncParsableCommand {

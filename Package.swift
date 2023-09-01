@@ -33,6 +33,7 @@ let package = Package(
     .package(path: "./swift-unisocket"),
     .package(path: "./JSONRPC-DataChannel-UniSocket"),
     .package(path: "./JSONRPC-DataChannel-Actor"),
+    .package(path: "./JSONRPC-DataChannel-StdioPipe"),
     // .package(path: "./LanguageClient"),
     .package(path: "./hylo")
   ],
@@ -63,6 +64,7 @@ let package = Package(
         "LanguageServerProtocol",
         "JSONRPC-DataChannel-UniSocket",
         "JSONRPC-DataChannel-Actor",
+        "JSONRPC-DataChannel-StdioPipe",
         .product(name: "UniSocket", package: "swift-unisocket"),
         .product(name: "ProcessEnv", package: "ProcessEnv", condition: .when(platforms: [.macOS])),
       ],
