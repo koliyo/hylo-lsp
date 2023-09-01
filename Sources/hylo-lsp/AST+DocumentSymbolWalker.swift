@@ -25,10 +25,10 @@ extension AST {
         }
         else if n.kind == TranslationUnit.self && scheme == "file" {
           if site.file.url.absoluteString != document {
-            // print("Ignore file: \(site.file.url)")
+            // logger.debug("Ignore file: \(site.file.url)")
             return false
           }
-          print("Enter file: \(site.file.url)")
+          logger.debug("Enter file: \(site.file.url)")
         }
       }
 
@@ -43,18 +43,18 @@ extension AST {
 
       // if n.kind == FunctionDecl.self || n.kind == VarDecl.self {
       if let d = AnyDeclID(n) {
-        print("Found symbol node: \(d), site: \(site)")
+        logger.debug("Found symbol node: \(d), site: \(site)")
         symbols.append(d)
         return false
       }
 
-      // print("Ignore node: \(n)")
+      // logger.debug("Ignore node: \(n)")
       return true
     }
   }
 
   public func listSymbols(_ document: DocumentUri) -> [AnyDeclID] {
-    print("List symbols in document: \(document)")
+    logger.debug("List symbols in document: \(document)")
     var finder = DocumentSymbolWalker(document)
 
     for m in modules {

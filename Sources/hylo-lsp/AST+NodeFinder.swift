@@ -19,7 +19,7 @@ extension AST {
 
       if let scheme = site.file.url.scheme {
         if scheme == "synthesized" {
-          // print("Enter: \(site), id: \(n)")
+          // logger.debug("Enter: \(site), id: \(n)")
           return true
         }
       }
@@ -37,7 +37,7 @@ extension AST {
       // We have a match, but nested children may be more specific
       if site.end >= query.index {
         match = n
-        // print("Found match: \(n)")
+        // logger.debug("Found match: \(n)")
         return true
       }
 

@@ -23,18 +23,20 @@ let package = Package(
     .executable(name: "hylo-lsp-test-client", targets: ["hylo-lsp-test-client"]),
   ],
   dependencies: [
+    .package(url: "https://github.com/apple/swift-log.git", from: "1.5.0"),
+    .package(url: "https://github.com/crspybits/swift-log-file.git", from: "0.1.0"),
+    // .package(url: "https://github.com/vapor/console-kit.git", from: "4.7.0"),
     // .package(url: "https://github.com/ChimeHQ/LanguageServerProtocol", from: "0.10.0"),
     // .package(url: "https://github.com/ChimeHQ/LanguageClient", from: "0.6.0"),
-    .package(url: "https://github.com/ChimeHQ/ProcessEnv", from: "1.0.0"),
+    // .package(url: "https://github.com/ChimeHQ/ProcessEnv", from: "1.0.0"),
     // .package(url: "https://github.com/seznam/swift-unisocket", from: "0.14.0"),
     .package(path: "./LanguageServerProtocol"),
     .package(path: "./LanguageClient"),
     // .package(name: "UniSocket", path: "./swift-unisocket"),
-    .package(path: "./swift-unisocket"),
+    // .package(path: "./swift-unisocket"),
     .package(path: "./JSONRPC-DataChannel-UniSocket"),
     .package(path: "./JSONRPC-DataChannel-Actor"),
     .package(path: "./JSONRPC-DataChannel-StdioPipe"),
-    // .package(path: "./LanguageClient"),
     .package(path: "./hylo")
   ],
   targets: [
@@ -43,14 +45,16 @@ let package = Package(
       name: "hylo-lsp",
       // dependencies: ["LanguageServerProtocol", "LanguageClient"],
       dependencies: [
-        "LanguageServerProtocol",
-        "JSONRPC-DataChannel-UniSocket",
-        "JSONRPC-DataChannel-Actor",
+        .product(name: "Logging", package: "swift-log"),
+        .product(name: "FileLogging", package: "swift-log-file"),
+        .product(name: "LanguageServerProtocol", package: "LanguageServerProtocol"),
+        .product(name: "LanguageServerProtocol-Server", package: "LanguageServerProtocol"),
+        // "JSONRPC-DataChannel-UniSocket",
+        // "JSONRPC-DataChannel-Actor",
         .product(name: "hc-lib", package: "hylo"),
-        .product(name: "UniSocket", package: "swift-unisocket"),
-        .product(name: "ProcessEnv", package: "ProcessEnv", condition: .when(platforms: [.macOS])),
+        // .product(name: "UniSocket", package: "swift-unisocket"),
+        // .product(name: "ProcessEnv", package: "ProcessEnv", condition: .when(platforms: [.macOS])),
       ],
-      // dependencies: ["LanguageServerProtocol", "UniSocket"],
       path: "Sources/hylo-lsp"
       // exclude: ["hylo-lsp-executable/main.swift"]
     ),
@@ -61,12 +65,10 @@ let package = Package(
       // dependencies: ["LanguageServerProtocol", "LanguageClient"],
       dependencies: [
         "hylo-lsp",
-        "LanguageServerProtocol",
         "JSONRPC-DataChannel-UniSocket",
         "JSONRPC-DataChannel-Actor",
         "JSONRPC-DataChannel-StdioPipe",
-        .product(name: "UniSocket", package: "swift-unisocket"),
-        .product(name: "ProcessEnv", package: "ProcessEnv", condition: .when(platforms: [.macOS])),
+        // .product(name: "ProcessEnv", package: "ProcessEnv", condition: .when(platforms: [.macOS])),
       ],
       // dependencies: ["LanguageServerProtocol", "UniSocket"],
       path: "Sources/hylo-lsp-executable"
@@ -76,8 +78,12 @@ let package = Package(
       name: "hylo-lsp-test-client",
       // dependencies: ["LanguageServerProtocol", "LanguageClient"],
       dependencies: [
+        // .product(name: "ConsoleKit", package: "console-kit"),
         "hylo-lsp",
         "LanguageClient",
+        "JSONRPC-DataChannel-UniSocket",
+        "JSONRPC-DataChannel-Actor",
+        "JSONRPC-DataChannel-StdioPipe",
       ],
       // dependencies: ["LanguageServerProtocol", "UniSocket"],
       path: "Sources/hylo-lsp-test-client"

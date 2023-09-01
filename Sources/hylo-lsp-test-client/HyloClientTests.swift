@@ -2,6 +2,7 @@ import Foundation
 import LanguageClient
 // import ProcessEnv
 import LanguageServerProtocol
+import LanguageServerProtocol_Client
 import JSONRPC
 import UniSocket
 import JSONRPC_DataChannel_UniSocket
@@ -15,7 +16,7 @@ let factorialUrl = URL.init(fileURLWithPath:"/Users/nils/Work/hylo-lsp/hylo/Exam
 
 func RunHyloClientTests(_ clientChannel: DataChannel) async {
   do {
-    let jsonServer = JSONRPCServer(dataChannel: clientChannel.withMessageFraming())
+    let jsonServer = JSONRPCServer(dataChannel: clientChannel)
 
     let docURL = factorialUrl
     // let docURL = URL.init(fileURLWithPath:"/Users/nils/Work/hylo-lsp/hyloc/Library/Hylo/Core/Int.hylo")
@@ -53,7 +54,7 @@ func RunHyloClientTests(_ clientChannel: DataChannel) async {
                               languageId: .swift,
                               version: 1,
                               text: docContent)
-    let docParams = DidOpenTextDocumentParams(textDocument: doc)
+    let docParams = TextDocumentDidOpenParams(textDocument: doc)
 
     // let server = InitializingServer(server: jsonServer, initializeParamsProvider: provider)
     let rsConf = RestartingServer.Configuration(

@@ -7,12 +7,17 @@ import UniSocket
 import JSONRPC_DataChannel_UniSocket
 import JSONRPC_DataChannel_Actor
 import ArgumentParser
+import Logging
 import hylo_lsp
 
 import Core
 import FrontEnd
 import IR
 
+
+// Allow loglevel as `ArgumentParser.Option`
+extension Logger.Level : ExpressibleByArgument {
+}
 
 let pipePath = "/tmp/my.sock"
 
@@ -22,10 +27,15 @@ struct HyloLspCommand: AsyncParsableCommand {
     @Flag(help: "Named pipe transport")
     var pipe: Bool = false
 
+    @Option(help: "Log level")
+    var log: Logger.Level = Logger.Level.debug
+
     func validate() throws {
     }
 
     func run() async throws {
+      logger.logLevel = log
+
       if pipe {
         print("starting client witn named pipe: \(pipePath)")
         let fileManager = FileManager.default
@@ -50,7 +60,7 @@ struct HyloLspCommand: AsyncParsableCommand {
         let (clientChannel, serverChannel) = DataChannel.withDataActor()
 
         Task {
-          let server = HyloServer(serverChannel)
+          let server = HyloServer(serverChannel, logger: logger)
           await server.run()
         }
 

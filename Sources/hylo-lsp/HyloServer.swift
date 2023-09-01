@@ -1,18 +1,20 @@
 import JSONRPC
 import LanguageServerProtocol
+import LanguageServerProtocol_Server
 import Foundation
 
 import Core
 import FrontEnd
 import IR
 import HyloModule
+import Logging
 
 public class LspState {
   var ast: AST
-  let lsp: LspServer
+  let lsp: JSONRPCServer
   var program: TypedProgram?
 
-  public init(ast: AST, lsp: LspServer) {
+  public init(ast: AST, lsp: JSONRPCServer) {
     self.ast = ast
     self.lsp = lsp
   }
@@ -31,7 +33,7 @@ public class LspState {
     let compileSequentially = false
 
     var diagnostics = DiagnosticSet()
-    print("buildProgram: \(inputs)")
+    logger.debug("buildProgram: \(inputs)")
 
     _ = try ast.makeModule(HyloNotificationHandler.productName, sourceCode: sourceFiles(in: inputs),
     builtinModuleAccess: importBuiltinModule, diagnostics: &diagnostics)
@@ -40,7 +42,7 @@ public class LspState {
     annotating: ScopedProgram(ast), inParallel: !compileSequentially,
     reportingDiagnosticsTo: &diagnostics,
     tracingInferenceIf: nil)
-    print("program is built")
+    logger.debug("program is built")
     return p
   }
 
@@ -65,7 +67,8 @@ public extension LanguageServerProtocol.Position {
 
 
 public struct HyloNotificationHandler : NotificationHandler {
-  public let lsp: LspServer
+  public let lsp: JSONRPCServer
+  public let logger: Logger
   var state: LspState
   var ast: AST { state.ast }
   static let productName = "lsp-build"
@@ -76,7 +79,7 @@ public struct HyloNotificationHandler : NotificationHandler {
       try fn()
     }
     catch {
-      print("Error: \(error)")
+      logger.debug("Error: \(error)")
     }
   }
 
@@ -85,7 +88,7 @@ public struct HyloNotificationHandler : NotificationHandler {
       try await fn()
     }
     catch {
-      print("Error: \(error)")
+      logger.debug("Error: \(error)")
     }
 
   }
@@ -99,14 +102,14 @@ public struct HyloNotificationHandler : NotificationHandler {
   }
 
   func buildDocument(_ uri: DocumentUri) async {
-    print("textDocumentDidOpen: \(uri)")
-    // print("lib uri: \(HyloModule.standardLibrary!.absoluteString)")
+    logger.debug("textDocumentDidOpen: \(uri)")
+    // logger.debug("lib uri: \(HyloModule.standardLibrary!.absoluteString)")
     // if uri.commonPrefix(with: HyloModule.standardLibrary!.absoluteString) == HyloModule.standardLibrary!.absoluteString {
     if uri.contains("hyloc/Library/Hylo") {
-      // print("document is lib")
+      // logger.debug("document is lib")
     }
     else {
-      // print("document is not lib")
+      // logger.debug("document is not lib")
       let inputs = [URL.init(string: uri)!]
       // let importBuiltinModule = false
       // let compileSequentially = false
@@ -128,23 +131,23 @@ public struct HyloNotificationHandler : NotificationHandler {
 
   }
 
-  public func textDocumentDidOpen(_ params: DidOpenTextDocumentParams) async {
+  public func textDocumentDidOpen(_ params: TextDocumentDidOpenParams) async {
     await buildDocument(params.textDocument.uri)
   }
 
-  public func textDocumentDidChange(_ params: DidChangeTextDocumentParams) async {
+  public func textDocumentDidChange(_ params: TextDocumentDidChangeParams) async {
     await buildDocument(params.textDocument.uri)
   }
 
-  public func textDocumentDidClose(_ params: DidCloseTextDocumentParams) async {
+  public func textDocumentDidClose(_ params: TextDocumentDidCloseParams) async {
 
   }
 
-  public func textDocumentWillSave(_ params: WillSaveTextDocumentParams) async {
+  public func textDocumentWillSave(_ params: TextDocumentWillSaveParams) async {
 
   }
 
-  public func textDocumentDidSave(_ params: DidSaveTextDocumentParams) async {
+  public func textDocumentDidSave(_ params: TextDocumentDidSaveParams) async {
     await buildDocument(params.textDocument.uri)
   }
 
@@ -199,7 +202,9 @@ public enum TokenType : UInt32, CaseIterable {
 }
 
 public struct HyloRequestHandler : RequestHandler {
-  public let lsp: LspServer
+  public let lsp: JSONRPCServer
+  public let logger: Logger
+
   var state: LspState
   var ast: AST { state.ast }
   var program: TypedProgram? { state.program }
@@ -207,12 +212,12 @@ public struct HyloRequestHandler : RequestHandler {
 
   private let serverInfo: ServerInfo
 
-  public init(lsp: LspServer, serverInfo: ServerInfo, state: LspState) {
+  public init(lsp: JSONRPCServer, logger: Logger, serverInfo: ServerInfo, state: LspState) {
     self.lsp = lsp
+    self.logger = logger
     self.serverInfo = serverInfo
     self.state = state
   }
-
 
 
   private func getServerCapabilities() -> ServerCapabilities {
@@ -245,8 +250,7 @@ public struct HyloRequestHandler : RequestHandler {
       }
 
       let filepath = path.absoluteURL.path() // URL path to filesystem path
-      print("filepath: \(filepath)")
-      fflush(stdout)
+      logger.debug("filepath: \(filepath)")
 
       guard let items = try? fm.contentsOfDirectory(atPath: filepath) else {
         return .failure(JSONRPCResponseError(code: ErrorCodes.ServerNotInitialized, message: "could not list rootUri directory: \(path)"))
@@ -264,8 +268,7 @@ public struct HyloRequestHandler : RequestHandler {
     else {
       // return .failure(JSONRPCResponseError(code: ErrorCodes.ServerNotInitialized, message: "expected rootUri parameter"))
 
-      print("init without rootUri")
-      fflush(stdout)
+      logger.debug("init without rootUri")
       return .success(InitializationResponse(capabilities: getServerCapabilities(), serverInfo: serverInfo))
     }
   }
@@ -291,13 +294,13 @@ public struct HyloRequestHandler : RequestHandler {
     let pos = params.position
 
     let p = SourcePosition(line: pos.line+1, column: pos.character+1, in: f)
-    print("Look for symbol definition at position: \(p)")
+    logger.debug("Look for symbol definition at position: \(p)")
 
     if let id = ast.findNode(p) {
-      // print("found: \(id), in num nodes: \(ast.numNodes)")
+      // logger.debug("found: \(id), in num nodes: \(ast.numNodes)")
       // let s = program.nodeToScope[id]
       let node = ast[id]
-      print("Found node: \(node), id: \(id)")
+      logger.debug("Found node: \(node), id: \(id)")
 
       let locationFromDecl = { (d: AnyDeclID) in
         let range = ast[d].site
@@ -340,22 +343,22 @@ public struct HyloRequestHandler : RequestHandler {
           }
 
           if let x = AnyPatternID(id) {
-            print("pattern: \(x)")
+            logger.debug("pattern: \(x)")
           }
 
           if let s = program.nodeToScope[id] {
-            print("scope: \(s)")
+            logger.debug("scope: \(s)")
             if let decls = program.scopeToDecls[s] {
               for d in decls {
                   if let t = program.declType[d] {
-                    print("decl: \(d), type: \(t)")
+                    logger.debug("decl: \(d), type: \(t)")
                   }
               }
             }
 
 
             if let fn = ast[s] as? FunctionDecl {
-              print("TODO: Need to figure out how to get resolved return type of function signature: \(fn.site)")
+              logger.debug("TODO: Need to figure out how to get resolved return type of function signature: \(fn.site)")
               return .success(nil)
               // return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO: Need to figure out how to get resolved return type of function signature: \(fn.site)"))
             }
@@ -374,14 +377,13 @@ public struct HyloRequestHandler : RequestHandler {
           let response = LocationLink(targetUri: url.absoluteString, targetRange: LSPRange(range), targetSelectionRange: selectionRange)
           return .success(.optionC([response]))
         case let .direct(d, args):
-          print("d: \(d), generic args: \(args), name: \(program.name(of: d) ?? "__noname__")")
-          fflush(stdout)
+          logger.debug("d: \(d), generic args: \(args), name: \(program.name(of: d) ?? "__noname__")")
           // let fnNode = ast[d]
           // let range = LSPRange(hylocRange: fnNode.site)
           return .success(locationResponseFromDecl(d))
           // if let fid = FunctionDecl.ID(d) {
           //   let f = sourceModule.functions[Function.ID(fid)]!
-          //   print("Function: \(f)")
+          //   logger.debug("Function: \(f)")
           // }
         default:
           await logInternalError("Unknown declaration kind: \(d!)")
@@ -456,7 +458,7 @@ public struct HyloRequestHandler : RequestHandler {
           ))
         }
         else {
-          print("Symbol declaration does not have a name: \(s)")
+          logger.debug("Symbol declaration does not have a name: \(s)")
         }
       }
 
@@ -484,20 +486,20 @@ public struct HyloRequestHandler : RequestHandler {
 
 
 public actor HyloServer {
-  let lsp: LspServer
+  let lsp: JSONRPCServer
   // private var ast: AST
   private var state: LspState
   private let requestHandler: HyloRequestHandler
   private let notificationHandler: HyloNotificationHandler
 
 
-  public init(_ dataChannel: DataChannel, useStandardLibrary: Bool = true) {
-    lsp = LspServer(dataChannel)
+  public init(_ dataChannel: DataChannel, logger: Logger, useStandardLibrary: Bool = true) {
+    lsp = JSONRPCServer(dataChannel)
     let serverInfo = ServerInfo(name: "hylo", version: "0.1.0")
     let ast = useStandardLibrary ? AST.standardLibrary : AST.coreModule
     self.state = LspState(ast: ast, lsp: lsp)
-    requestHandler = HyloRequestHandler(lsp: lsp, serverInfo: serverInfo, state: state)
-    notificationHandler = HyloNotificationHandler(lsp: lsp, state: state)
+    requestHandler = HyloRequestHandler(lsp: lsp, logger: logger, serverInfo: serverInfo, state: state)
+    notificationHandler = HyloNotificationHandler(lsp: lsp, logger: logger, state: state)
 
     // Task {
 		// 	await monitorRequests()
@@ -509,7 +511,7 @@ public actor HyloServer {
   }
 
   public func run() async {
-    print("starting server")
+    logger.debug("starting server")
     async let t1: () = monitorRequests()
     async let t2: () = monitorNotifications()
     async let t3: () = monitorErrors()
@@ -519,26 +521,26 @@ public actor HyloServer {
     //   try await lsp.sendNotification(.windowLogMessage(LogMessageParams(type: .warning, message: "foo")))
     // }
     // catch {
-    //   print("error: \(error)")
+    //   logger.debug("error: \(error)")
     // }
 
     _ = await [t1, t2, t3]
   }
 
   func monitorErrors() async {
-    for await error in lsp.errorSequence {
-      print("LSP stream error: \(error)")
+    for await error in await lsp.errorSequence {
+      logger.debug("LSP stream error: \(error)")
     }
   }
 
   func monitorRequests() async {
-    for await request in lsp.requestSequence {
+    for await request in await lsp.requestSequence {
       await requestHandler.handleRequest(request)
     }
   }
 
   func monitorNotifications() async {
-    for await notification in lsp.notificationSequence {
+    for await notification in await lsp.notificationSequence {
       await notificationHandler.handleNotification(notification)
     }
   }

@@ -1,6 +1,5 @@
 import Foundation
-//import LanguageClient
-import ProcessEnv
+// import ProcessEnv
 import LanguageServerProtocol
 import JSONRPC
 import UniSocket
@@ -8,6 +7,8 @@ import JSONRPC_DataChannel_UniSocket
 import JSONRPC_DataChannel_StdioPipe
 import ArgumentParser
 import hylo_lsp
+import Logging
+import FileLogging
 
 extension Bool {
     var intValue: Int {
@@ -15,8 +16,18 @@ extension Bool {
     }
 }
 
+// Allow loglevel as `ArgumentParser.Option`
+extension Logger.Level : ExpressibleByArgument {
+}
+
+
 @main
 struct HyloLspCommand: AsyncParsableCommand {
+    @Option(help: "Log level")
+    var log: Logger.Level = Logger.Level.debug
+
+    @Option(help: "Log file")
+    var logFile: String = "hylo-lsp.log"
 
     @Flag(help: "Stdio transport")
     var stdio: Bool = false
@@ -28,106 +39,58 @@ struct HyloLspCommand: AsyncParsableCommand {
     var socket: String?
 
     func validate() throws {
-      // let numTransports = stdio.intValue + (pipe != nil).intValue + (socket != nil).intValue
-      // guard numTransports == 1 else {
-      //     throw ValidationError("Exactly one transport method must be defined")
-      // }
+      let numTransports = stdio.intValue + (pipe != nil).intValue + (socket != nil).intValue
+      guard numTransports == 1 else {
+          throw ValidationError("Exactly one transport method must be defined (stdio, pipe, socket)")
+      }
     }
 
+    func run(logger: Logger, channel: DataChannel) async {
+      let server = HyloServer(channel, logger: logger)
+      await server.run()
+    }
 
     func run() async throws {
-        print("args: \(CommandLine.arguments)")
-        fflush(stdout)
+
+        // Force line buffering
+        setvbuf(stdout, nil, _IOLBF, 0)
+        setvbuf(stderr, nil, _IOLBF, 0)
+
+        let logFileURL = URL(filePath: logFile)
+        let fileLogger = try FileLogging(to: logFileURL)
+
+        // print("Hylo LSP server args: \(CommandLine.arguments)")
 
         if stdio {
-          let channel = DataChannel.stdioPipe()
-          let server = HyloServer(channel)
-          await server.run()
+          // For stdio transport it is important that only protocol messages are sent to stdio
+          // Only use file backend for logging
+          // var logger = try FileLogging.logger(label: loggerLabel, localFile: logFileURL)
+          logger = Logger(label: loggerLabel) { label in FileLogHandler(label: label, fileLogger: fileLogger) }
+          logger.logLevel = log
+          await run(logger: logger, channel: DataChannel.stdioPipe())
         }
-        else if let socket = socket {
+
+
+        // Multiplexed logging to file and console
+        logger = Logger(label: loggerLabel) { label in
+          MultiplexLogHandler([
+            FileLogHandler(label: label, fileLogger: fileLogger),
+            StreamLogHandler.standardOutput(label: loggerLabel)
+          ])
+        }
+
+        logger.logLevel = log
+
+        if let socket = socket {
           // throw ValidationError("TODO: socket transport: \(socket)")
           let socket = try UniSocket(type: .tcp, peer: socket, timeout: (connect: 5, read: nil, write: 5))
           try socket.attach()
-          let channel = DataChannel(socket: socket)
-          let server = HyloServer(channel)
-          await server.run()
+          await run(logger: logger, channel: DataChannel(socket: socket))
         }
         else if let pipe = pipe {
           let socket = try UniSocket(type: .local, peer: pipe, timeout: (connect: 5, read: nil, write: 5))
           try socket.attach()
-          let channel = DataChannel(socket: socket)
-          let server = HyloServer(channel)
-          await server.run()
+          await run(logger: logger, channel: DataChannel(socket: socket))
         }
     }
 }
-
-
-// print("SERVER with args: \(CommandLine.arguments)")
-// await HyloLspCommand.main2()
-
-// // let x = ProcessInfo.processInfo.userEnvironment
-// let x = ProcessInfo.processInfo.environment
-// // let params = Process.ExecutionParameters(path: "/path/to/server-executable",
-// //                                          arguments: [],
-// //                                         //  environment: [:])
-// //                                          environment: ProcessInfo.processInfo.userEnvironment)
-
-// // let channel = DataChannel.localProcessChannel(parameters: params, terminationHandler: { print("terminated") })
-
-// // print("hello2: \(x)")
-
-// // let x = JSONRPCServer(dataChannel: channel)
-// do {
-// 	let socket = try UniSocket(type: .local, peer: "/tmp/my_socket", timeout: (connect: 5, read: nil, write: 5))
-// 	try socket.attach()
-
-//   let channel = DataChannel(socket: socket)
-//   let server = LspServer(dataChannel: channel)
-//   // let server = JSONRPCServer(dataChannel: channel)
-//   let noteSequence = server.notificationSequence
-//   let requestSequence = server.requestSequence
-//   // let session = JSONRPCSession(channel: channel)
-//   // let noteSequence = await session.notificationSequence
-//   // let requestSequence = await session.requestSequence
-
-//   let t1 = Task {
-//     print("t1")
-//     for await notification in noteSequence {
-//       print("notification: \(notification)")
-//     }
-//     // for await (notification, data) in noteSequence {
-//     //   print("notification: \(notification), data: \(data)")
-//     // }
-
-//   }
-
-//   // await t1.result
-
-//   let t2 = Task {
-//     print("t2")
-//     for await (request) in requestSequence {
-//       print("request: \(request)")
-//     }
-
-//     // for await (request, handler, data) in requestSequence {
-//     //   print("request: \(request), data: \(data), handler: \(handler)")
-//     // }
-//   }
-
-//   let _ = await [t1.result, t2.result]
-
-//   // let d = "foo".data(using: .utf8)!
-//   // try socket.send(d)
-// 	// print("sent!")
-// 	// let data = try socket.recv()
-//   // let str = String(decoding: data, as: UTF8.self)
-// 	// print("server responded with: \(str)")
-//   print("exit")
-// 	try socket.close()
-
-// } catch UniSocketError.error(let detail) {
-// 	print("fail: \(detail)")
-// }
-
-

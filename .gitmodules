@@ -1,9 +1,9 @@
 [submodule "LanguageClient"]
 	path = LanguageClient
-	url = https://github.com/ChimeHQ/LanguageClient.git
+	url = https://github.com/koliyo/LanguageClient.git
 [submodule "LanguageServerProtocol"]
 	path = LanguageServerProtocol
-	url = https://github.com/ChimeHQ/LanguageServerProtocol.git
+	url = https://github.com/koliyo/LanguageServerProtocol.git
 [submodule "hylo"]
 	path = hylo
 	url = https://github.com/koliyo/hylo.git

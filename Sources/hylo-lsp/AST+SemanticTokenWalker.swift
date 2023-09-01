@@ -34,10 +34,10 @@ extension AST {
         }
         else if n.kind == TranslationUnit.self && scheme == "file" {
           if site.file.url.absoluteString != document {
-            // print("Ignore file: \(site.file.url)")
+            // logger.debug("Ignore file: \(site.file.url)")
             return false
           }
-          print("Enter file: \(site.file.url)")
+          logger.debug("Enter file: \(site.file.url)")
         }
       }
 
@@ -67,7 +67,7 @@ extension AST {
   }
 
   public func getSematicTokens(_ document: DocumentUri) -> [SemanticToken] {
-    print("List symbols in document: \(document)")
+    logger.debug("List symbols in document: \(document)")
     var finder = SemanticTokenWalker(document)
 
     for m in modules {
