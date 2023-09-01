@@ -25,9 +25,9 @@
 [submodule "JSONRPC-DataChannel-Actor"]
 	path = JSONRPC-DataChannel-Actor
 	url = https://github.com/koliyo/JSONRPC-DataChannel-Actor.git
-[submodule "JSONRPC"]
-	path = JSONRPC
-	url = https://github.com/ChimeHQ/JSONRPC.git
 [submodule "JSONRPC-DataChannel-StdioPipe"]
 	path = JSONRPC-DataChannel-StdioPipe
 	url = https://github.com/koliyo/JSONRPC-DataChannel-StdioPipe.git
+[submodule "JSONRPC"]
+	path = JSONRPC
+	url = https://github.com/ChimeHQ/JSONRPC.git
