@@ -23,11 +23,15 @@ extension Logger.Level : ExpressibleByArgument {
 
 @main
 struct HyloLspCommand: AsyncParsableCommand {
+
     @Option(help: "Log level")
     var log: Logger.Level = Logger.Level.debug
 
     @Option(help: "Log file")
     var logFile: String = "hylo-lsp.log"
+
+    // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#implementationConsiderations
+    // These are VS Code compatible transport flags:
 
     @Flag(help: "Stdio transport")
     var stdio: Bool = false
