@@ -205,7 +205,28 @@ extension AST {
       let e = ast[expr]
       switch e {
         case let d as NameExpr:
-          tokens.append(SemanticToken(range: d.site, type: TokenType.type.rawValue))
+          // tokens.append(SemanticToken(range: d.site, type: TokenType.type.rawValue))
+
+          switch d.domain {
+          case .operand:
+            logger.debug("TODO: Domain.operand")
+          case .implicit:
+            logger.debug("TODO: Domain.implicit")
+          case let .explicit(id):
+            logger.debug("TODO: Domain.explicit: \(id)")
+          case .none:
+            break
+          }
+
+          tokens.append(SemanticToken(range: d.name.site, type: TokenType.type.rawValue))
+          for a in d.arguments {
+            if let l = a.label {
+              tokens.append(SemanticToken(range: l.site, type: TokenType.identifier.rawValue))
+            }
+
+            addExpr(a.value, in: ast)
+          }
+
         case let d as TupleTypeExpr:
 
           for e in d.elements {
