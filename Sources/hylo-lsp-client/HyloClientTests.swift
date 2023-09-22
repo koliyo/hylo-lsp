@@ -12,62 +12,61 @@ import FrontEnd
 import IR
 import hylo_lsp
 
-let factorialUrl = URL.init(fileURLWithPath:"/Users/nils/Work/hylo-lsp/hylo/Examples/factorial.hylo")
+public func createServer(channel: DataChannel, docURL: URL) async throws -> RestartingServer<JSONRPCServer> {
+  let jsonServer = JSONRPCServer(dataChannel: channel)
+  let workspaceDirectory = docURL.deletingLastPathComponent()
 
-func RunHyloClientTests(_ clientChannel: DataChannel) async {
+  let provider: InitializingServer.InitializeParamsProvider = {
+      // you may need to fill in more of the textDocument field for completions
+      // to work, depending on your server
+      let capabilities = ClientCapabilities(workspace: nil,
+                                            textDocument: nil,
+                                            window: nil,
+                                            general: nil,
+                                            experimental: nil)
+
+      // pay careful attention to rootPath/rootURI/workspaceFolders, as different servers will
+      // have different expectations/requirements here
+      let ws = WorkspaceFolder(uri: workspaceDirectory.absoluteString, name: "workspace")
+
+      return InitializeParams(processId: Int(ProcessInfo.processInfo.processIdentifier),
+                              locale: nil,
+                              rootPath: nil,
+                              rootUri: nil,
+                              // rootUri: projectURL.absoluteString,
+                              initializationOptions: nil,
+                              capabilities: capabilities,
+                              trace: nil,
+                              workspaceFolders: [ws])
+  }
+
+
+  let docContent = try String(contentsOf: docURL)
+
+  let doc = TextDocumentItem(uri: docURL.absoluteString,
+                            languageId: .swift,
+                            version: 1,
+                            text: docContent)
+
+  // let server = InitializingServer(server: jsonServer, initializeParamsProvider: provider)
+  let rsConf = RestartingServer.Configuration(
+    serverProvider: { jsonServer },
+    textDocumentItemProvider: { _ in doc },
+    initializeParamsProvider: provider)
+
+  let server = RestartingServer(configuration: rsConf)
+
+  let docParams = TextDocumentDidOpenParams(textDocument: doc)
+
+  try await server.textDocumentDidOpen(params: docParams)
+
+  return server
+}
+
+
+func RunHyloClientTests(channel: DataChannel, docURL: URL) async {
   do {
-    let jsonServer = JSONRPCServer(dataChannel: clientChannel)
-
-    let docURL = factorialUrl
-    // let docURL = URL.init(fileURLWithPath:"/Users/nils/Work/hylo-lsp/hyloc/Library/Hylo/Core/Int.hylo")
-
-    let projectURL = docURL.deletingLastPathComponent()
-
-    let provider: InitializingServer.InitializeParamsProvider = {
-        // you may need to fill in more of the textDocument field for completions
-        // to work, depending on your server
-        let capabilities = ClientCapabilities(workspace: nil,
-                                              textDocument: nil,
-                                              window: nil,
-                                              general: nil,
-                                              experimental: nil)
-
-        // pay careful attention to rootPath/rootURI/workspaceFolders, as different servers will
-        // have different expectations/requirements here
-        let ws = WorkspaceFolder(uri: projectURL.absoluteString, name: "workspace")
-
-        return InitializeParams(processId: Int(ProcessInfo.processInfo.processIdentifier),
-                                locale: nil,
-                                rootPath: nil,
-                                rootUri: nil,
-                                // rootUri: projectURL.absoluteString,
-                                initializationOptions: nil,
-                                capabilities: capabilities,
-                                trace: nil,
-                                workspaceFolders: [ws])
-    }
-
-
-    let docContent = try String(contentsOf: docURL)
-
-    let doc = TextDocumentItem(uri: docURL.absoluteString,
-                              languageId: .swift,
-                              version: 1,
-                              text: docContent)
-    let docParams = TextDocumentDidOpenParams(textDocument: doc)
-
-    // let server = InitializingServer(server: jsonServer, initializeParamsProvider: provider)
-    let rsConf = RestartingServer.Configuration(
-      serverProvider: { jsonServer },
-      textDocumentItemProvider: { _ in doc },
-      initializeParamsProvider: provider)
-
-    let server = RestartingServer(configuration: rsConf)
-
-
-
-    try await server.textDocumentDidOpen(params: docParams)
-
+    let server = try await createServer(channel: channel, docURL: docURL)
     if let c = await server.capabilities {
       if let semanticTokensProvider = c.semanticTokensProvider {
         print("Server legend: \(semanticTokensProvider.effectiveOptions.legend)")

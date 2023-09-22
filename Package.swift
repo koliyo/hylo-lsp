@@ -19,8 +19,8 @@ let package = Package(
 
   products: [
     .library(name: "hylo-lsp", targets: ["hylo-lsp"]),
-    .executable(name: "hylo-lsp-executable", targets: ["hylo-lsp-executable"]),
-    .executable(name: "hylo-lsp-test-client", targets: ["hylo-lsp-test-client"]),
+    .executable(name: "hylo-lsp-server", targets: ["hylo-lsp-server"]),
+    .executable(name: "hylo-lsp-client", targets: ["hylo-lsp-client"]),
   ],
   dependencies: [
     .package(url: "https://github.com/apple/swift-log.git", from: "1.5.0"),
@@ -51,17 +51,17 @@ let package = Package(
         .product(name: "LanguageServerProtocol-Server", package: "LanguageServerProtocol"),
         // "JSONRPC-DataChannel-UniSocket",
         // "JSONRPC-DataChannel-Actor",
-        .product(name: "hc-lib", package: "hylo"),
+        .product(name: "Hylo", package: "hylo"),
         // .product(name: "UniSocket", package: "swift-unisocket"),
         // .product(name: "ProcessEnv", package: "ProcessEnv", condition: .when(platforms: [.macOS])),
       ],
       path: "Sources/hylo-lsp"
-      // exclude: ["hylo-lsp-executable/main.swift"]
+      // exclude: ["hylo-lsp-server/main.swift"]
     ),
 
 
     .executableTarget(
-      name: "hylo-lsp-executable",
+      name: "hylo-lsp-server",
       // dependencies: ["LanguageServerProtocol", "LanguageClient"],
       dependencies: [
         "hylo-lsp",
@@ -71,11 +71,11 @@ let package = Package(
         // .product(name: "ProcessEnv", package: "ProcessEnv", condition: .when(platforms: [.macOS])),
       ],
       // dependencies: ["LanguageServerProtocol", "UniSocket"],
-      path: "Sources/hylo-lsp-executable"
+      path: "Sources/hylo-lsp-server"
     ),
 
     .executableTarget(
-      name: "hylo-lsp-test-client",
+      name: "hylo-lsp-client",
       // dependencies: ["LanguageServerProtocol", "LanguageClient"],
       dependencies: [
         // .product(name: "ConsoleKit", package: "console-kit"),
@@ -86,7 +86,7 @@ let package = Package(
         "JSONRPC-DataChannel-StdioPipe",
       ],
       // dependencies: ["LanguageServerProtocol", "UniSocket"],
-      path: "Sources/hylo-lsp-test-client"
+      path: "Sources/hylo-lsp-client"
     ),
 
 
@@ -107,6 +107,6 @@ let package = Package(
     //   name: "hylo-lsp"),
     .testTarget(
       name: "hylo-lspTests",
-      dependencies: ["hylo-lsp-executable"]),
+      dependencies: ["hylo-lsp-server"]),
   ]
 )

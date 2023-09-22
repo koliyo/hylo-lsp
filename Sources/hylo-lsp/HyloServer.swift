@@ -13,6 +13,7 @@ public class LspState {
   var ast: AST
   let lsp: JSONRPCServer
   var program: TypedProgram?
+  var stdlibProgram: TypedProgram?
 
   public init(ast: AST, lsp: JSONRPCServer) {
     self.ast = ast
@@ -105,8 +106,11 @@ public struct HyloNotificationHandler : NotificationHandler {
     logger.debug("textDocumentDidOpen: \(uri)")
     // logger.debug("lib uri: \(HyloModule.standardLibrary!.absoluteString)")
     // if uri.commonPrefix(with: HyloModule.standardLibrary!.absoluteString) == HyloModule.standardLibrary!.absoluteString {
-    if uri.contains("hyloc/Library/Hylo") {
+    if uri.contains("hylo/Library/Hylo") {
       // logger.debug("document is lib")
+      state.task = Task {
+        state.stdlibProgram!
+      }
     }
     else {
       // logger.debug("document is not lib")
@@ -242,6 +246,20 @@ public struct HyloRequestHandler : RequestHandler {
 
 
   public func initialize(_ params: InitializeParams) async -> Result<InitializationResponse, AnyJSONRPCResponseError> {
+
+    do {
+      var diagnostics = DiagnosticSet()
+      state.stdlibProgram = try TypedProgram(
+      annotating: ScopedProgram(ast), inParallel: true,
+      reportingDiagnosticsTo: &diagnostics,
+      tracingInferenceIf: nil)
+      logger.debug("built stdlib program")
+    }
+    catch {
+        return .failure(JSONRPCResponseError(code: ErrorCodes.ServerNotInitialized, message: "could not build stdlib: \(error)"))
+    }
+
+
     let fm = FileManager.default
 
     if let rootUri = params.rootUri {
@@ -473,15 +491,15 @@ public struct HyloRequestHandler : RequestHandler {
   // https://code.visualstudio.com/api/language-extensions/semantic-highlight-guide
   // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_semanticTokens
   public func semanticTokensFull(_ params: SemanticTokensParams) async -> Result<SemanticTokensResponse, AnyJSONRPCResponseError> {
-    guard let _ = state.task else {
+    guard let task = state.task else {
       return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Expected an opened document"))
     }
 
+    let program = try! await task.value
 
-    let tokens = ast.getSematicTokens(params.textDocument.uri)
+    let tokens = ast.getSematicTokens(params.textDocument.uri, program)
     return .success(SemanticTokens(tokens: tokens))
   }
-
 }
 
 
@@ -497,6 +515,7 @@ public actor HyloServer {
     lsp = JSONRPCServer(dataChannel)
     let serverInfo = ServerInfo(name: "hylo", version: "0.1.0")
     let ast = useStandardLibrary ? AST.standardLibrary : AST.coreModule
+
     self.state = LspState(ast: ast, lsp: lsp)
     requestHandler = HyloRequestHandler(lsp: lsp, logger: logger, serverInfo: serverInfo, state: state)
     notificationHandler = HyloNotificationHandler(lsp: lsp, logger: logger, state: state)
