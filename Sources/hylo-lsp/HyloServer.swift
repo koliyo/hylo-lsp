@@ -244,10 +244,11 @@ public struct HyloRequestHandler : RequestHandler {
     return s
   }
 
-
   public func initialize(_ params: InitializeParams) async -> Result<InitializationResponse, AnyJSONRPCResponseError> {
 
     do {
+      state.ast = try AST(libraryRoot: HyloModule.standardLibrary)
+
       var diagnostics = DiagnosticSet()
       state.stdlibProgram = try TypedProgram(
       annotating: ScopedProgram(ast), inParallel: true,
@@ -511,11 +512,10 @@ public actor HyloServer {
   private let notificationHandler: HyloNotificationHandler
 
 
-  public init(_ dataChannel: DataChannel, logger: Logger, useStandardLibrary: Bool = true) {
+  public init(_ dataChannel: DataChannel, logger: Logger) {
     lsp = JSONRPCServer(dataChannel)
     let serverInfo = ServerInfo(name: "hylo", version: "0.1.0")
-    let ast = useStandardLibrary ? AST.standardLibrary : AST.coreModule
-
+    let ast = AST()
     self.state = LspState(ast: ast, lsp: lsp)
     requestHandler = HyloRequestHandler(lsp: lsp, logger: logger, serverInfo: serverInfo, state: state)
     notificationHandler = HyloNotificationHandler(lsp: lsp, logger: logger, state: state)
