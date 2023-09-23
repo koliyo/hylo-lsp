@@ -196,7 +196,10 @@ public struct HyloNotificationHandler : NotificationHandler {
 public enum TokenType : UInt32, CaseIterable {
   case type
   case identifier
+  case number
   case variable
+  case label
+  case `operator`
   case function
   case keyword
 

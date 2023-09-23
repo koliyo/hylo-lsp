@@ -19,7 +19,6 @@ extension AST {
     private(set) var tokens: [SemanticToken]
     private let document: DocumentUri
     private let program: TypedProgram
-    private var binding: BindingDecl?
 
     public init(_ document: DocumentUri, _ program: TypedProgram) {
       self.document = document
@@ -44,113 +43,106 @@ extension AST {
         }
       }
 
+      return addDecl(node, in: ast)
+    }
+
+    mutating func addSubscriptImpl(_ s: SubscriptImpl.ID, in ast: AST) {
+      let s = ast[s]
+
+      // NOTE: introducer + parameter add introducer twice for some reason
+      tokens.append(SemanticToken(range: s.introducer.site, type: TokenType.keyword.rawValue))
+      // addParameter(s.receiver, in: ast)
+      addBody(s.body, in: ast)
+    }
+
+    mutating func addDecl(_ node: Node, in ast: AST) -> Bool {
+
       switch node {
-      case let d as BindingDecl:
-        binding = d
-        return true
+      case _ as TranslationUnit:
+        break
       case _ as NamespaceDecl:
-        return true
+        break
+
+      case let d as BindingDecl:
+        addBinding(d, in: ast)
+        return false
       case let d as InitializerDecl:
-        addAttributes(d.attributes, in: ast)
-        addAccessModifier(d.accessModifier)
-        tokens.append(SemanticToken(range: d.introducer.site, type: TokenType.function.rawValue))
-        addGenericClause(d.genericClause, in: ast)
-        return true
+        addInitializer(d, in: ast)
+        return false
       case let d as SubscriptDecl:
-        addAttributes(d.attributes, in: ast)
-        addAccessModifier(d.accessModifier)
-        addOptionalKeyword(d.memberModifier)
-        tokens.append(SemanticToken(range: d.introducer.site, type: TokenType.function.rawValue))
-        if let identifier = d.identifier {
-          tokens.append(SemanticToken(range: identifier.site, type: TokenType.function.rawValue))
-        }
-
-        addGenericClause(d.genericClause, in: ast)
-        addParameters(d.parameters, in: ast)
-        addExpr(d.output, in: ast)
-
-        return true
+        addSubscript(d, in: ast)
+        return false
       case let d as FunctionDecl:
-        addAttributes(d.attributes, in: ast)
-        addAccessModifier(d.accessModifier)
-        addOptionalKeyword(d.memberModifier)
-        addOptionalKeyword(d.notation)
-        tokens.append(SemanticToken(range: d.introducerSite, type: TokenType.keyword.rawValue))
-        if let identifier = d.identifier {
-          tokens.append(SemanticToken(range: identifier.site, type: TokenType.function.rawValue))
-        }
-
-        addGenericClause(d.genericClause, in: ast)
-        addParameters(d.parameters, in: ast)
-        addOptionalKeyword(d.receiverEffect)
-        addExpr(d.output, in: ast)
-
-        return true
-      case let d as VarDecl:
-        guard let binding = binding else {
-          return true
-        }
-
-        addAttributes(binding.attributes, in: ast)
-        addAccessModifier(binding.accessModifier)
-        addOptionalKeyword(binding.memberModifier)
-        addOptionalKeyword(binding.memberModifier)
-        let p = ast[binding.pattern]
-        tokens.append(SemanticToken(range: p.introducer.site, type: TokenType.keyword.rawValue))
-
-        tokens.append(SemanticToken(range: d.identifier.site, type: TokenType.variable.rawValue))
-        addBindingPattern(binding.pattern, in: ast)
-        addExpr(binding.initializer, in: ast)
-
-        self.binding = nil
-        return true
+        addFunction(d, in: ast)
+        return false
+      case _ as VarDecl:
+        // NOTE: VarDecl is handled by BindingDecl, which allows binding one or more variables
+        break
       case let d as AssociatedTypeDecl:
         tokens.append(SemanticToken(range: d.introducerSite, type: TokenType.keyword.rawValue))
         tokens.append(SemanticToken(range: d.identifier.site, type: TokenType.type.rawValue))
-        return true
       case let d as ProductTypeDecl:
-        // guard let binding = binding else {
-        //   return true
-        // }
-
 
         addAccessModifier(d.accessModifier)
-        // let p = ast[binding.pattern]
-        // tokens.append(SemanticToken(range: p.introducer.site, type: TokenType.keyword.rawValue))
+        // tokens.append(SemanticToken(range: d.introducer.site, type: TokenType.keyword.rawValue))
 
         tokens.append(SemanticToken(range: d.identifier.site, type: TokenType.type.rawValue))
         addGenericClause(d.genericClause, in: ast)
         addConformances(d.conformances, in: ast)
-        return true
       case let d as ExtensionDecl:
         addAccessModifier(d.accessModifier)
         addExpr(d.subject, in: ast)
         addWhereClause(d.whereClause, in: ast)
-        return true
       case let d as TypeAliasDecl:
         addAccessModifier(d.accessModifier)
         tokens.append(SemanticToken(range: d.identifier.site, type: TokenType.type.rawValue))
         addGenericClause(d.genericClause, in: ast)
         addExpr(d.aliasedType, in: ast)
-
-        return true
       case let d as ConformanceDecl:
         addAccessModifier(d.accessModifier)
         addExpr(d.subject, in: ast)
         addConformances(d.conformances, in: ast)
         addWhereClause(d.whereClause, in: ast)
-
-        return true
       default:
-        return true
+        // print("Unknown node: \(node)")
+        break
       }
+
+      return true
+    }
+
+    mutating func addDecl(_ decl: AnyDeclID, in ast: AST) -> Bool {
+      let node = ast[decl]
+      return addDecl(node, in: ast)
+    }
+
+
+    mutating func addBinding(_ d: BindingDecl, in ast: AST) {
+      addAttributes(d.attributes, in: ast)
+      addAccessModifier(d.accessModifier)
+      addOptionalKeyword(d.memberModifier)
+      addOptionalKeyword(d.memberModifier)
+      addBindingPattern(d.pattern, in: ast)
+      addExpr(d.initializer, in: ast)
     }
 
     mutating func addBindingPattern(_ pattern: BindingPattern.ID, in ast: AST) {
-      let pattern = ast[pattern]
-      // tokens.append(SemanticToken(range: pattern.introducer.site, type: TokenType.keyword.rawValue))
-      // TODO: subpattern
-      addExpr(pattern.annotation, in: ast)
+      let p = ast[pattern]
+      tokens.append(SemanticToken(range: p.introducer.site, type: TokenType.keyword.rawValue))
+
+      let s = ast[p.subpattern]
+      switch s {
+      case let s as NamePattern:
+        tokens.append(SemanticToken(range: s.site, type: TokenType.variable.rawValue))
+        break
+      case let s as WildcardPattern:
+        tokens.append(SemanticToken(range: s.site, type: TokenType.keyword.rawValue))
+        break
+      default:
+        logger.debug("Unknown pattern: \(s)")
+      }
+
+      addExpr(p.annotation, in: ast)
     }
 
     mutating func addOptionalKeyword<T>(_ keyword: SourceRepresentable<T>?) {
@@ -175,11 +167,13 @@ extension AST {
       }
     }
 
-    mutating func addParameter(_ parameter: ParameterDecl.ID, in ast: AST) {
-      let p = ast[parameter]
-      if let label = p.label {
-        tokens.append(SemanticToken(range: label.site, type: TokenType.keyword.rawValue))
+    mutating func addParameter(_ parameter: ParameterDecl.ID?, in ast: AST) {
+      guard let parameter = parameter else {
+        return
       }
+
+      let p = ast[parameter]
+      addLabel(p.label)
 
       tokens.append(SemanticToken(range: p.identifier.site, type: TokenType.identifier.rawValue))
 
@@ -204,41 +198,187 @@ extension AST {
 
       let e = ast[expr]
       switch e {
-        case let d as NameExpr:
+        case let e as NameExpr:
           // tokens.append(SemanticToken(range: d.site, type: TokenType.type.rawValue))
 
-          switch d.domain {
+          switch e.domain {
           case .operand:
-            logger.debug("TODO: Domain.operand")
+            logger.debug("TODO: Domain.operand @ \(e.site)")
           case .implicit:
-            logger.debug("TODO: Domain.implicit")
+            // logger.debug("TODO: Domain.implicit @ \(e.site)")
+            break
           case let .explicit(id):
-            logger.debug("TODO: Domain.explicit: \(id)")
+            // logger.debug("TODO: Domain.explicit: \(id) @ \(e.site)")
+            addExpr(id, in: ast)
           case .none:
             break
           }
 
-          tokens.append(SemanticToken(range: d.name.site, type: TokenType.type.rawValue))
-          for a in d.arguments {
-            if let l = a.label {
-              tokens.append(SemanticToken(range: l.site, type: TokenType.identifier.rawValue))
-            }
+          // TODO: Full name handling: stem, labels, notation, introducer
+          // TODO: Name type should simply be `identifier`? Otherwise we need to pass paramter if it is `type`, `function`, etc
+          tokens.append(SemanticToken(range: e.name.site, type: TokenType.type.rawValue))
+          addArguments(e.arguments, in: ast)
 
-            addExpr(a.value, in: ast)
+        case let e as TupleTypeExpr:
+
+          for el in e.elements {
+
+            addLabel(el.label)
+            addExpr(el.type, in: ast)
           }
 
-        case let d as TupleTypeExpr:
+        case let e as NumericLiteralExpr:
+          tokens.append(SemanticToken(range: e.site, type: TokenType.number.rawValue))
 
-          for e in d.elements {
-
-            if let l = e.label {
-              tokens.append(SemanticToken(range: l.site, type: TokenType.keyword.rawValue))
-            }
-
-            addExpr(e.type, in: ast)
+        case let e as FunctionCallExpr:
+          addExpr(e.callee, in: ast)
+          addArguments(e.arguments, in: ast)
+        case let e as SubscriptCallExpr:
+          addExpr(e.callee, in: ast)
+          addArguments(e.arguments, in: ast)
+        case let e as SequenceExpr:
+          addExpr(e.head, in: ast)
+          for el in e.tail {
+            let op = ast[el.operator]
+            tokens.append(SemanticToken(range: op.site, type: TokenType.operator.rawValue))
+            addExpr(el.operand, in: ast)
           }
+
+        case let e as LambdaExpr:
+          addFunction(ast[e.decl], in: ast)
+
+        case let e as ConditionalExpr:
+          tokens.append(SemanticToken(range: e.introducerSite, type: TokenType.keyword.rawValue))
+          addConditions(e.condition, in: ast)
+          addExpr(e.success, in: ast)
+          addExpr(e.failure, in: ast)
+
+        case let s as InoutExpr:
+          tokens.append(SemanticToken(range: s.operatorSite, type: TokenType.operator.rawValue))
+          addExpr(s.subject, in: ast)
+
         default:
-          logger.debug("unknown expr: \(e)")
+          logger.debug("Unknown expr: \(e)")
+      }
+    }
+
+    mutating func addConditions(_ conditions: [ConditionItem], in ast: AST) {
+      for c in conditions {
+        switch c {
+          case let .expr(e):
+            addExpr(e, in: ast)
+          case let .decl(d):
+            addBinding(ast[d], in: ast)
+        }
+      }
+    }
+
+    mutating func addArguments(_ arguments: [LabeledArgument], in ast: AST) {
+      for a in arguments {
+        addLabel(a.label)
+        addExpr(a.value, in: ast)
+      }
+    }
+
+
+    mutating func addSubscript(_ d: SubscriptDecl, in ast: AST) {
+      addAttributes(d.attributes, in: ast)
+      addAccessModifier(d.accessModifier)
+      addOptionalKeyword(d.memberModifier)
+      tokens.append(SemanticToken(range: d.introducer.site, type: TokenType.function.rawValue))
+      if let identifier = d.identifier {
+        tokens.append(SemanticToken(range: identifier.site, type: TokenType.function.rawValue))
+      }
+
+      addGenericClause(d.genericClause, in: ast)
+      addParameters(d.parameters, in: ast)
+      addExpr(d.output, in: ast)
+
+      for i in d.impls {
+        addSubscriptImpl(i, in: ast)
+      }
+    }
+
+    mutating func addInitializer(_ d: InitializerDecl, in ast: AST) {
+      addAttributes(d.attributes, in: ast)
+      addAccessModifier(d.accessModifier)
+      tokens.append(SemanticToken(range: d.introducer.site, type: TokenType.function.rawValue))
+      addGenericClause(d.genericClause, in: ast)
+      addStatements(d.body, in: ast)
+    }
+
+    mutating func addFunction(_ d: FunctionDecl, in ast: AST) {
+      addAttributes(d.attributes, in: ast)
+      addAccessModifier(d.accessModifier)
+      addOptionalKeyword(d.memberModifier)
+      addOptionalKeyword(d.notation)
+      tokens.append(SemanticToken(range: d.introducerSite, type: TokenType.keyword.rawValue))
+      if let identifier = d.identifier {
+        tokens.append(SemanticToken(range: identifier.site, type: TokenType.function.rawValue))
+      }
+
+      addGenericClause(d.genericClause, in: ast)
+      addParameters(d.parameters, in: ast)
+      addOptionalKeyword(d.receiverEffect)
+      addExpr(d.output, in: ast)
+      addBody(d.body, in: ast)
+    }
+
+    mutating func addBody(_ body: FunctionBody?, in ast: AST) {
+      switch body {
+      case nil:
+        break
+      case let .expr(e):
+        addExpr(e, in: ast)
+      case let .block(b):
+        addStatements(b, in: ast)
+      }
+    }
+
+    mutating func addStatements(_ b: BraceStmt.ID?, in ast: AST) {
+      guard let b = b else {
+        return
+      }
+
+      addStatements(ast[b].stmts, in: ast)
+    }
+
+    mutating func addStatements(_ statements: [AnyStmtID], in ast: AST) {
+      for s in statements {
+        addStatement(s, in: ast)
+      }
+    }
+
+    mutating func addStatement(_ statement: AnyStmtID?, in ast: AST) {
+      guard let statement = statement else {
+        return
+      }
+
+      let s = ast[statement]
+
+      switch s {
+        case let s as ExprStmt:
+          addExpr(s.expr, in: ast)
+        case let s as ReturnStmt:
+          tokens.append(SemanticToken(range: s.introducerSite, type: TokenType.type.rawValue))
+          addExpr(s.value, in: ast)
+        case let s as DeclStmt:
+          _ = addDecl(s.decl, in: ast)
+          break
+        case let s as WhileStmt:
+          tokens.append(SemanticToken(range: s.introducerSite, type: TokenType.keyword.rawValue))
+          addConditions(s.condition, in: ast)
+          addStatements(s.body, in: ast)
+        case let s as AssignStmt:
+          addExpr(s.left, in: ast)
+          addExpr(s.right, in: ast)
+        case let s as ConditionalStmt:
+          tokens.append(SemanticToken(range: s.introducerSite, type: TokenType.keyword.rawValue))
+          addConditions(s.condition, in: ast)
+          addStatements(s.success, in: ast)
+          addStatement(s.failure, in: ast)
+        default:
+          print("Unknown statement: \(s)")
       }
     }
 
@@ -263,6 +403,12 @@ extension AST {
         default:
           break
         }
+      }
+    }
+
+    mutating func addLabel(_ label: SourceRepresentable<Identifier>?) {
+      if let label = label {
+        tokens.append(SemanticToken(range: label.site, type: TokenType.label.rawValue))
       }
     }
 
