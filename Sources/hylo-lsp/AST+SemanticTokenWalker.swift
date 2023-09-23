@@ -253,9 +253,30 @@ extension AST {
           addExpr(e.success, in: ast)
           addExpr(e.failure, in: ast)
 
-        case let s as InoutExpr:
-          tokens.append(SemanticToken(range: s.operatorSite, type: TokenType.operator.rawValue))
-          addExpr(s.subject, in: ast)
+        case let e as InoutExpr:
+          tokens.append(SemanticToken(range: e.operatorSite, type: TokenType.operator.rawValue))
+          addExpr(e.subject, in: ast)
+
+        case let e as TupleMemberExpr:
+          addExpr(e.tuple, in: ast)
+          tokens.append(SemanticToken(range: e.index.site, type: TokenType.number.rawValue))
+
+        case let e as TupleExpr:
+          for el in e.elements {
+            addLabel(el.label)
+            addExpr(el.value, in: ast)
+          }
+
+        case let e as LambdaTypeExpr:
+          addOptionalKeyword(e.receiverEffect)
+          addExpr(e.environment, in: ast)
+          for p in e.parameters {
+            addLabel(p.label)
+            let pt = ast[p.type]
+            addOptionalKeyword(pt.convention)
+            addExpr(pt.bareType, in: ast)
+          }
+          addExpr(e.output, in: ast)
 
         default:
           logger.debug("Unknown expr: \(e)")
@@ -304,6 +325,7 @@ extension AST {
       addAccessModifier(d.accessModifier)
       tokens.append(SemanticToken(range: d.introducer.site, type: TokenType.function.rawValue))
       addGenericClause(d.genericClause, in: ast)
+      addParameters(d.parameters, in: ast)
       addStatements(d.body, in: ast)
     }
 
