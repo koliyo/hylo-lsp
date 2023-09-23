@@ -271,19 +271,19 @@ public struct HyloRequestHandler : RequestHandler {
         return .failure(JSONRPCResponseError(code: ErrorCodes.ServerNotInitialized, message: "invalid rootUri uri format"))
       }
 
-      let filepath = path.absoluteURL.path() // URL path to filesystem path
-      logger.debug("filepath: \(filepath)")
+      // let filepath = path.absoluteURL.path() // URL path to filesystem path
+      // logger.debug("filepath: \(filepath)")
 
-      guard let items = try? fm.contentsOfDirectory(atPath: filepath) else {
-        return .failure(JSONRPCResponseError(code: ErrorCodes.ServerNotInitialized, message: "could not list rootUri directory: \(path)"))
-      }
+      // guard let items = try? fm.contentsOfDirectory(atPath: filepath) else {
+      //   return .failure(JSONRPCResponseError(code: ErrorCodes.ServerNotInitialized, message: "could not list rootUri directory: \(path)"))
+      // }
 
-      do {
-        state.program = try state._buildProgram(items.map { path.appending(path: $0) })
-      }
-      catch {
-        return .failure(JSONRPCResponseError(code: ErrorCodes.ServerNotInitialized, message: "could not build rootUri directory: \(path), error: \(error)"))
-      }
+      // do {
+      //   state.program = try state._buildProgram(items.map { path.appending(path: $0) })
+      // }
+      // catch {
+      //   return .failure(JSONRPCResponseError(code: ErrorCodes.ServerNotInitialized, message: "could not build rootUri directory: \(path), error: \(error)"))
+      // }
 
       return .success(InitializationResponse(capabilities: getServerCapabilities(), serverInfo: serverInfo))
     }
