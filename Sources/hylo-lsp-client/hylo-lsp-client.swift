@@ -58,12 +58,38 @@ struct HyloLspCommand: AsyncParsableCommand {
 
     static var configuration = CommandConfiguration(
         abstract: "HyloLSP command line client",
-        subcommands: [SemanticToken.self],
+        subcommands: [SemanticToken.self, Diagnostics.self],
         defaultSubcommand: SemanticToken.self)
 
 }
 
 extension HyloLspCommand {
+  struct Diagnostics : AsyncParsableCommand {
+    @OptionGroup var options: Options
+    func run() async throws {
+      let docURL = URL.init(fileURLWithPath: options.document)
+
+      let (clientChannel, serverChannel) = DataChannel.withDataActor()
+
+      Task {
+        let server = HyloServer(serverChannel, logger: logger)
+        await server.run()
+      }
+
+      // await RunHyloClientTests(channel: clientChannel, docURL: docURL)
+      let server = try await createServer(channel: clientChannel, docURL: docURL)
+
+
+
+      let params = DocumentDiagnosticParams(textDocument: TextDocumentIdentifier(uri: docURL.absoluteString))
+      let report = try await server.diagnostics(params: params)
+      for i in report.items ?? [] {
+        print("\(docURL.path):\(i.range.start.line+1):\(i.range.start.character+1) \(i.severity ?? .information): \(i.message)")
+      }
+    }
+
+  }
+
   struct SemanticToken : AsyncParsableCommand {
     @OptionGroup var options: Options
 

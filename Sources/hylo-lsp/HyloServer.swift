@@ -9,23 +9,33 @@ import IR
 import HyloModule
 import Logging
 
+enum BuildError : Error {
+  case diagnostics(DiagnosticSet)
+  case message(String)
+}
+
 public class LspState {
   var ast: AST
   let lsp: JSONRPCServer
-  var program: TypedProgram?
+  // var program: TypedProgram?
+  var documents: [DocumentUri:Document]
   var stdlibProgram: TypedProgram?
+  var uri: DocumentUri?
 
   public init(ast: AST, lsp: JSONRPCServer) {
     self.ast = ast
     self.lsp = lsp
+    self.documents = [:]
   }
 
-  var task: Task<TypedProgram, Error>?
+  // var task: Task<TypedProgram, Error>?
 
-  public func buildProgram(_ inputs: [URL]) {
-    task = Task {
+  public func buildProgram(_ uri: DocumentUri) {
+    let task = Task {
+      let inputs = [URL.init(string: uri)!]
       return try _buildProgram(inputs)
     }
+    documents[uri] = Document(uri: uri, task: task)
   }
 
   public func _buildProgram(_ inputs: [URL]) throws -> TypedProgram {
@@ -49,22 +59,6 @@ public class LspState {
 
 }
 
-public extension LanguageServerProtocol.LSPRange {
-  init(_ range: SourceRange) {
-    var (first, last) = (range.first(), range.last()!)
-    let incLast = range.file.text.index(after: last.index)
-    last = SourcePosition(incLast, in: last.file)
-
-    self.init(start: Position(first), end: Position(last))
-  }
-}
-
-public extension LanguageServerProtocol.Position {
-  init(_ pos: SourcePosition) {
-    let (line, column) = pos.lineAndColumn
-    self.init(line: line-1, character: column-1)
-  }
-}
 
 
 public struct HyloNotificationHandler : NotificationHandler {
@@ -103,24 +97,24 @@ public struct HyloNotificationHandler : NotificationHandler {
   }
 
   func buildDocument(_ uri: DocumentUri) async {
+    state.uri = uri
     logger.debug("textDocumentDidOpen: \(uri)")
     // logger.debug("lib uri: \(HyloModule.standardLibrary!.absoluteString)")
     // if uri.commonPrefix(with: HyloModule.standardLibrary!.absoluteString) == HyloModule.standardLibrary!.absoluteString {
     if uri.contains("hylo/Library/Hylo") {
       // logger.debug("document is lib")
-      state.task = Task {
-        state.stdlibProgram!
-      }
+      state.documents[uri] = Document(uri: uri, program: state.stdlibProgram!)
     }
     else {
       // logger.debug("document is not lib")
-      let inputs = [URL.init(string: uri)!]
+      // let inputs = [URL.init(string: uri)!]
+      // let inputs = [uri]
       // let importBuiltinModule = false
       // let compileSequentially = false
 
       // var diagnostics = DiagnosticSet()
 
-      state.buildProgram(inputs)
+      state.buildProgram(uri)
       // withErrorLogging {
       //   try state.buildProgram(inputs)
       //   _ = try state.ast.makeModule(HyloNotificationHandler.productName, sourceCode: sourceFiles(in: inputs),
@@ -197,6 +191,7 @@ public enum TokenType : UInt32, CaseIterable {
   case type
   case identifier
   case number
+  case string
   case variable
   case label
   case `operator`
@@ -214,7 +209,7 @@ public struct HyloRequestHandler : RequestHandler {
 
   var state: LspState
   var ast: AST { state.ast }
-  var program: TypedProgram? { state.program }
+  // var program: TypedProgram? { state.program }
   // var initTask: Task<TypedProgram, Error>
 
   private let serverInfo: ServerInfo
@@ -243,6 +238,7 @@ public struct HyloRequestHandler : RequestHandler {
     s.documentSymbolProvider = .optionA(true)
     // s.semanticTokensProvider = .optionA(SemanticTokensOptions(legend: tokenLedgend, range: .optionA(true), full: .optionA(true)))
     s.semanticTokensProvider = .optionB(SemanticTokensRegistrationOptions(documentSelector: [documentSelector], legend: tokenLedgend, range: .optionA(false), full: .optionA(true)))
+    s.diagnosticProvider = .optionA(DiagnosticOptions(interFileDependencies: false, workspaceDiagnostics: false))
 
     return s
   }
@@ -264,7 +260,7 @@ public struct HyloRequestHandler : RequestHandler {
     }
 
 
-    let fm = FileManager.default
+    // let fm = FileManager.default
 
     if let rootUri = params.rootUri {
       guard let path = URL(string: rootUri) else {
@@ -299,15 +295,7 @@ public struct HyloRequestHandler : RequestHandler {
 
   }
 
-  public func definition(_ params: TextDocumentPositionParams) async -> Result<DefinitionResponse, AnyJSONRPCResponseError> {
-    guard let task = state.task else {
-      return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Expected an opened document"))
-    }
-
-    guard let program = try? await task.value else {
-      return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Compilation missing"))
-    }
-
+  public func definition(_ params: TextDocumentPositionParams, _ program: TypedProgram) async -> Result<DefinitionResponse, AnyJSONRPCResponseError> {
     let url = URL.init(string: params.textDocument.uri)!
     guard let f = try? SourceFile(contentsOf: url) else {
       return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Invalid document uri"))
@@ -418,6 +406,12 @@ public struct HyloRequestHandler : RequestHandler {
     return .success(nil)
   }
 
+  public func definition(_ params: TextDocumentPositionParams) async -> Result<DefinitionResponse, AnyJSONRPCResponseError> {
+    await withProgram(params.textDocument) { program in
+      await definition(params, program)
+    }
+  }
+
   public func nameRange(of d: AnyDeclID) -> SourceRange? {
     // if let e = self.ast[d] as? SingleEntityDecl { return Name(stem: e.baseName) }
 
@@ -448,61 +442,115 @@ public struct HyloRequestHandler : RequestHandler {
     }
   }
 
+  public func documentSymbol(_ params: DocumentSymbolParams, _ program: TypedProgram) async -> Result<DocumentSymbolResponse, AnyJSONRPCResponseError> {
+    let symbols = ast.listSymbols(params.textDocument.uri)
+    var lspSymbols: [DocumentSymbol] = []
+    for s in symbols {
+      var detail: String? = nil
+
+      if let type = program.declType[s] {
+        // detail = program.name(of: type)
+        detail = type.description
+        // detail = "\(type.base)"
+      }
+
+      let declRange = ast[s].site
+      let range = LSPRange(declRange)
+      let selectionRange = LSPRange(nameRange(of: s) ?? declRange)
+
+      if let name = program.name(of: s) {
+        lspSymbols.append(DocumentSymbol(
+          name: name.stem,
+          detail: detail,
+          kind: kind(s),
+          range: range,
+          selectionRange: selectionRange
+        ))
+      }
+      else {
+        logger.debug("Symbol declaration does not have a name: \(s)")
+      }
+    }
+
+    return .success(.optionA(lspSymbols))
+  }
+
   public func documentSymbol(_ params: DocumentSymbolParams) async -> Result<DocumentSymbolResponse, AnyJSONRPCResponseError> {
-    guard let task = state.task else {
+    await withProgram(params.textDocument) { program in
+      await documentSymbol(params, program)
+    }
+  }
+
+  public func diagnostics(_ params: DocumentDiagnosticParams) async -> Result<DocumentDiagnosticReport, AnyJSONRPCResponseError> {
+    guard let d = state.documents[params.textDocument.uri] else {
       return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Expected an opened document"))
     }
 
     do {
-      let program = try await task.value
-      let symbols = ast.listSymbols(params.textDocument.uri)
-      var lspSymbols: [DocumentSymbol] = []
-      for s in symbols {
-        var detail: String? = nil
-
-        if let type = program.declType[s] {
-          // detail = program.name(of: type)
-          detail = type.description
-          // detail = "\(type.base)"
-        }
-
-        let declRange = ast[s].site
-        let range = LSPRange(declRange)
-        let selectionRange = LSPRange(nameRange(of: s) ?? declRange)
-
-        if let name = program.name(of: s) {
-          lspSymbols.append(DocumentSymbol(
-            name: name.stem,
-            detail: detail,
-            kind: kind(s),
-            range: range,
-            selectionRange: selectionRange
-          ))
-        }
-        else {
-          logger.debug("Symbol declaration does not have a name: \(s)")
-        }
-      }
-
-      return .success(.optionA(lspSymbols))
+      _ = try await d.task.value
+      return .success(RelatedDocumentDiagnosticReport(kind: .full, items: []))
+    }
+    catch let d as DiagnosticSet {
+      let dList = d.elements.map { LanguageServerProtocol.Diagnostic($0) }
+      return .success(RelatedDocumentDiagnosticReport(kind: .full, items: dList))
     }
     catch {
-      await logInternalError("Error during symbol resolution: \(error)")
+      return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Unknown build error: \(error)"))
+    }
+  }
+
+  // func getProgram() async -> Result<TypedProgram, BuildError> {
+  //   guard let task = state.task else {
+  //     return .failure(.message("Expected an opened document"))
+  //   }
+
+  //   do {
+  //     return .success(try await task.value)
+  //   }
+  //   catch {
+  //     return .failure(.message("Build error: \(error)"))
+  //   }
+  // }
+
+
+  func trySendDiagnostics(_ diagnostics: DiagnosticSet) async {
+    do {
+      logger.debug("[\(state.uri!)] send diagnostics")
+      let dList = diagnostics.elements.map { LanguageServerProtocol.Diagnostic($0) }
+      let dp = PublishDiagnosticsParams(uri: state.uri!, diagnostics: dList)
+      try await lsp.sendNotification(.textDocumentPublishDiagnostics(dp))
+    }
+    catch {
+      logger.error(Logger.Message(stringLiteral: error.localizedDescription))
+    }
+  }
+
+  func withProgram<ResponseT>(_ textDocument: TextDocumentIdentifier, fn: (TypedProgram) async -> Result<ResponseT?, AnyJSONRPCResponseError>) async -> Result<ResponseT?, AnyJSONRPCResponseError> {
+    guard let d = state.documents[textDocument.uri] else {
+      return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Expected an opened document"))
+    }
+
+    do {
+      let program = try await d.task.value
+      return await fn(program)
+    }
+    catch let d as DiagnosticSet {
+      // await trySendDiagnostics(d)
       return .success(nil)
+    }
+    catch {
+      return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Unknown build error: \(error)"))
     }
   }
 
   // https://code.visualstudio.com/api/language-extensions/semantic-highlight-guide
   // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_semanticTokens
   public func semanticTokensFull(_ params: SemanticTokensParams) async -> Result<SemanticTokensResponse, AnyJSONRPCResponseError> {
-    guard let task = state.task else {
-      return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Expected an opened document"))
+    await withProgram(params.textDocument) { program in
+      let tokens = ast.getSematicTokens(params.textDocument.uri, program)
+      logger.debug("[\(params.textDocument.uri)] Return \(tokens.count) semantic tokens")
+      return .success(SemanticTokens(tokens: tokens))
     }
-
-    let program = try! await task.value
-
-    let tokens = ast.getSematicTokens(params.textDocument.uri, program)
-    return .success(SemanticTokens(tokens: tokens))
   }
 }
 
