@@ -16,7 +16,9 @@ public extension LanguageServerProtocol.DiagnosticSeverity {
 
 public extension LanguageServerProtocol.Diagnostic {
   init(_ diagnostic: Core.Diagnostic) {
-    precondition(diagnostic.notes.isEmpty, "TODO: Subdiagnostics")
+    let relatedInformation = diagnostic.notes.map { note in
+      DiagnosticRelatedInformation(location: Location(note.site), message: note.message)
+    }
 
     self.init(
       range: LSPRange(diagnostic.site),
@@ -25,7 +27,7 @@ public extension LanguageServerProtocol.Diagnostic {
       source: nil,
       message: diagnostic.message,
       tags: nil,
-      relatedInformation: nil
+      relatedInformation: relatedInformation
     )
   }
 }

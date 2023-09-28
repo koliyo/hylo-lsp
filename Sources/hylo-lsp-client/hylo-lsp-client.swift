@@ -82,7 +82,13 @@ struct HyloLspCommand: AsyncParsableCommand {
         abstract: "HyloLSP command line client",
         subcommands: [SemanticToken.self, Diagnostics.self],
         defaultSubcommand: nil)
+}
 
+extension DocumentUri {
+}
+
+public func cliLink(uri: String, range: LSPRange) -> String {
+  "\(uri):\(range.start.line+1):\(range.start.character+1)"
 }
 
 extension HyloLspCommand {
@@ -103,11 +109,13 @@ extension HyloLspCommand {
       let server = try await createServer(channel: clientChannel, docURL: docURL)
 
 
-
       let params = DocumentDiagnosticParams(textDocument: TextDocumentIdentifier(uri: docURL.absoluteString))
       let report = try await server.diagnostics(params: params)
       for i in report.items ?? [] {
-        print("\(docURL.path):\(i.range.start.line+1):\(i.range.start.character+1) \(i.severity ?? .information): \(i.message)")
+        print("\(cliLink(uri: docURL.path, range: i.range)) \(i.severity ?? .information): \(i.message)")
+        for ri in i.relatedInformation ?? [] {
+          print("  \(cliLink(uri: ri.location.uri, range: ri.location.range)) \(ri.message)")
+        }
       }
     }
 

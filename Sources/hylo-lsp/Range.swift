@@ -1,6 +1,12 @@
 import LanguageServerProtocol
 import Core
 
+public extension LanguageServerProtocol.Location {
+  init(_ range: SourceRange) {
+    self.init(uri: range.file.url.path, range: LSPRange(range))
+  }
+}
+
 public extension LanguageServerProtocol.LSPRange {
   init(_ range: SourceRange) {
     var (first, last) = (range.first(), range.last()!)
