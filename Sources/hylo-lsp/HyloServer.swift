@@ -536,6 +536,7 @@ public struct HyloRequestHandler : RequestHandler {
     }
     catch let d as DiagnosticSet {
       // await trySendDiagnostics(d)
+      logger.warning("Program build failed\n\n\(d)")
       return .success(nil)
     }
     catch {

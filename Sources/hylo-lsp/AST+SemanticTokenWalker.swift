@@ -234,6 +234,46 @@ extension AST {
       addExpr(p.defaultValue, in: ast)
     }
 
+    func tokenType(_ d: AnyDeclID) -> TokenType {
+      switch d.kind {
+        case ProductTypeDecl.self: .type
+        case TypeAliasDecl.self: .type
+        case AssociatedTypeDecl.self: .type
+        case ExtensionDecl.self: .type
+        case ConformanceDecl.self: .type
+        case GenericParameterDecl.self: .type
+        case TraitDecl.self: .type
+        case InitializerDecl.self: .function
+        case SubscriptDecl.self: .function
+        case FunctionDecl.self: .function
+        case MethodDecl.self: .function
+        case VarDecl.self: .variable
+        case BindingDecl.self: .variable
+        case ParameterDecl.self: .variable
+        default: .identifier
+      }
+    }
+
+    func tokenType(_ d: DeclReference?) -> TokenType {
+      switch d {
+        case .constructor:
+          .function
+        case .builtinFunction:
+          .function
+        case .compilerKnownType:
+          .type
+        case .builtinType:
+          .type
+        case let .direct(id, _):
+          tokenType(id)
+        case let .member(id, _, _):
+          tokenType(id)
+        case .builtinModule:
+          .identifier
+        case nil:
+          .identifier
+      }
+    }
 
     mutating func addExpr(_ expr: AnyExprID?, in ast: AST) {
       guard let expr = expr else {
@@ -258,9 +298,14 @@ extension AST {
             break
           }
 
-          // TODO: Full name handling: stem, labels, notation, introducer
-          // TODO: Name type should simply be `identifier`? Otherwise we need to pass paramter if it is `type`, `function`, etc
-          addToken(range: e.name.site, type: TokenType.type)
+          let n = NameExpr.ID(expr)!
+          let d = program.referredDecl[n]
+          let t = tokenType(d)
+          if d != nil && t == .identifier {
+            print("Unknown decl reference: \(d!)")
+          }
+
+          addToken(range: e.name.site, type: t)
           addArguments(e.arguments, in: ast)
 
         case let e as TupleTypeExpr:
