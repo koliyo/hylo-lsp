@@ -4,11 +4,11 @@ import IR
 import LanguageServerProtocol
 
 extension SemanticToken {
-  public init(range: SourceRange, type: UInt32, modifiers: UInt32 = 0) {
+  public init(range: SourceRange, type: TokenType, modifiers: UInt32 = 0) {
     let f = range.first()
     let (line, column) = f.lineAndColumn
     let length = range.end.utf16Offset(in: f.file.text) - range.start.utf16Offset(in: f.file.text)
-    self.init(line: UInt32(line-1), char: UInt32(column-1), length: UInt32(length), type: type, modifiers: modifiers)
+    self.init(line: UInt32(line-1), char: UInt32(column-1), length: UInt32(length), type: type.rawValue, modifiers: modifiers)
   }
 }
 
@@ -75,17 +75,20 @@ extension AST {
       case let d as FunctionDecl:
         addFunction(d, in: ast)
         return false
+      case let d as MethodDecl:
+        addMethod(d, in: ast)
+        return false
       case _ as VarDecl:
         // NOTE: VarDecl is handled by BindingDecl, which allows binding one or more variables
         break
       case let d as AssociatedTypeDecl:
         addIntroducer(d.introducerSite)
-        tokens.append(SemanticToken(range: d.identifier.site, type: TokenType.type.rawValue))
+        addToken(range: d.identifier.site, type: TokenType.type)
       case let d as ProductTypeDecl:
 
         addAccessModifier(d.accessModifier)
         addIntroducer(d.introducerSite)
-        tokens.append(SemanticToken(range: d.identifier.site, type: TokenType.type.rawValue))
+        addToken(range: d.identifier.site, type: TokenType.type)
         addGenericClause(d.genericClause, in: ast)
         addConformances(d.conformances, in: ast)
       case let d as ExtensionDecl:
@@ -96,7 +99,7 @@ extension AST {
       case let d as TypeAliasDecl:
         addAccessModifier(d.accessModifier)
         addIntroducer(d.introducerSite)
-        tokens.append(SemanticToken(range: d.identifier.site, type: TokenType.type.rawValue))
+        addToken(range: d.identifier.site, type: TokenType.type)
         addGenericClause(d.genericClause, in: ast)
         addExpr(d.aliasedType, in: ast)
       case let d as ConformanceDecl:
@@ -109,7 +112,7 @@ extension AST {
       case let d as TraitDecl:
         addAccessModifier(d.accessModifier)
         addIntroducer(d.introducerSite)
-        tokens.append(SemanticToken(range: d.identifier.site, type: TokenType.type.rawValue))
+        addToken(range: d.identifier.site, type: TokenType.type)
         addConformances(d.refinements, in: ast)
 
       default:
@@ -140,7 +143,7 @@ extension AST {
 
       switch p {
       case let p as NamePattern:
-        tokens.append(SemanticToken(range: p.site, type: TokenType.variable.rawValue))
+        addToken(range: p.site, type: TokenType.variable)
       case let p as WildcardPattern:
         addIntroducer(p.site)
       case let p as BindingPattern:
@@ -150,7 +153,7 @@ extension AST {
       case let p as TuplePattern:
         for e in p.elements {
           if let label = e.label {
-            tokens.append(SemanticToken(range: label.site, type: TokenType.label.rawValue))
+            addToken(range: label.site, type: TokenType.label)
           }
 
           addPattern(e.pattern, in: ast)
@@ -161,6 +164,10 @@ extension AST {
       }
     }
 
+    mutating func addToken(range: SourceRange, type: TokenType, modifiers: UInt32 = 0) {
+      tokens.append(SemanticToken(range: range, type: type, modifiers: modifiers))
+    }
+
     mutating func addIntroducer<T>(_ site: SourceRepresentable<T>?) {
       if let site = site {
         addIntroducer(site.site)
@@ -168,7 +175,7 @@ extension AST {
     }
 
     mutating func addIntroducer(_ site: SourceRange) {
-      tokens.append(SemanticToken(range: site, type: TokenType.keyword.rawValue))
+      addToken(range: site, type: TokenType.keyword)
     }
 
     mutating func addBindingPattern(_ pattern: BindingPattern.ID, in ast: AST) {
@@ -186,7 +193,16 @@ extension AST {
     }
 
     mutating func addAttribute(_ attribute: Attribute, in ast: AST) {
-      // TODO
+      addToken(range: attribute.name.site, type: TokenType.function)
+
+      for a in attribute.arguments {
+        switch a {
+          case let .string(s):
+            addToken(range: s.site, type: TokenType.string)
+          case let .integer(i):
+            addToken(range: i.site, type: TokenType.number)
+        }
+      }
     }
 
     mutating func addParameters(_ parameters: [ParameterDecl.ID], in ast: AST) {
@@ -203,7 +219,7 @@ extension AST {
       let p = ast[parameter]
       addLabel(p.label)
 
-      tokens.append(SemanticToken(range: p.identifier.site, type: TokenType.identifier.rawValue))
+      addToken(range: p.identifier.site, type: TokenType.identifier)
 
       if let annotation = p.annotation {
         let a = ast[annotation]
@@ -227,7 +243,7 @@ extension AST {
       let e = ast[expr]
       switch e {
         case let e as NameExpr:
-          // tokens.append(SemanticToken(range: d.site, type: TokenType.type.rawValue))
+          // addToken(range: d.site, type: TokenType.type)
 
           switch e.domain {
           case .operand:
@@ -244,7 +260,7 @@ extension AST {
 
           // TODO: Full name handling: stem, labels, notation, introducer
           // TODO: Name type should simply be `identifier`? Otherwise we need to pass paramter if it is `type`, `function`, etc
-          tokens.append(SemanticToken(range: e.name.site, type: TokenType.type.rawValue))
+          addToken(range: e.name.site, type: TokenType.type)
           addArguments(e.arguments, in: ast)
 
         case let e as TupleTypeExpr:
@@ -258,9 +274,9 @@ extension AST {
         case let e as BooleanLiteralExpr:
           addIntroducer(e.site)
         case let e as NumericLiteralExpr:
-          tokens.append(SemanticToken(range: e.site, type: TokenType.number.rawValue))
+          addToken(range: e.site, type: TokenType.number)
         case let e as StringLiteralExpr:
-          tokens.append(SemanticToken(range: e.site, type: TokenType.string.rawValue))
+          addToken(range: e.site, type: TokenType.string)
 
         case let e as FunctionCallExpr:
           addExpr(e.callee, in: ast)
@@ -272,7 +288,7 @@ extension AST {
           addExpr(e.head, in: ast)
           for el in e.tail {
             let op = ast[el.operator]
-            tokens.append(SemanticToken(range: op.site, type: TokenType.operator.rawValue))
+            addToken(range: op.site, type: TokenType.operator)
             addExpr(el.operand, in: ast)
           }
 
@@ -287,12 +303,12 @@ extension AST {
           addExpr(e.failure.value, in: ast)
 
         case let e as InoutExpr:
-          tokens.append(SemanticToken(range: e.operatorSite, type: TokenType.operator.rawValue))
+          addToken(range: e.operatorSite, type: TokenType.operator)
           addExpr(e.subject, in: ast)
 
         case let e as TupleMemberExpr:
           addExpr(e.tuple, in: ast)
-          tokens.append(SemanticToken(range: e.index.site, type: TokenType.number.rawValue))
+          addToken(range: e.index.site, type: TokenType.number)
 
         case let e as TupleExpr:
           for el in e.elements {
@@ -337,6 +353,9 @@ extension AST {
           addIntroducer(e.convention)
           addExpr(e.operand, in: ast)
 
+        case let e as PragmaLiteralExpr:
+          addToken(range: e.site, type: TokenType.identifier)
+
         default:
           logger.debug("Unknown expr: \(e)")
       }
@@ -380,7 +399,7 @@ extension AST {
       addIntroducer(d.memberModifier)
       addIntroducer(d.introducer)
       if let identifier = d.identifier {
-        tokens.append(SemanticToken(range: identifier.site, type: TokenType.function.rawValue))
+        addToken(range: identifier.site, type: TokenType.function)
       }
 
       addGenericClause(d.genericClause, in: ast)
@@ -408,7 +427,7 @@ extension AST {
       addIntroducer(d.notation)
       addIntroducer(d.introducerSite)
       if let identifier = d.identifier {
-        tokens.append(SemanticToken(range: identifier.site, type: TokenType.function.rawValue))
+        addToken(range: identifier.site, type: TokenType.function)
       }
 
       addGenericClause(d.genericClause, in: ast)
@@ -416,6 +435,25 @@ extension AST {
       addIntroducer(d.receiverEffect)
       addExpr(d.output, in: ast)
       addBody(d.body, in: ast)
+    }
+
+    mutating func addMethod(_ d: MethodDecl, in ast: AST) {
+      addAttributes(d.attributes, in: ast)
+      addAccessModifier(d.accessModifier)
+      addIntroducer(d.notation)
+      addIntroducer(d.introducerSite)
+      addToken(range: d.identifier.site, type: TokenType.function)
+
+      addGenericClause(d.genericClause, in: ast)
+      addParameters(d.parameters, in: ast)
+      addExpr(d.output, in: ast)
+
+      for i in d.impls {
+        let i = ast[i]
+        addIntroducer(i.introducer)
+        // addParameter(i.receiver, in: ast)
+        addBody(i.body, in: ast)
+      }
     }
 
     mutating func addBody(_ body: FunctionBody?, in ast: AST) {
@@ -454,7 +492,7 @@ extension AST {
         case let s as ExprStmt:
           addExpr(s.expr, in: ast)
         case let s as ReturnStmt:
-          tokens.append(SemanticToken(range: s.introducerSite, type: TokenType.type.rawValue))
+          addToken(range: s.introducerSite, type: TokenType.keyword)
           addExpr(s.value, in: ast)
         case let s as DeclStmt:
           _ = addDecl(s.decl, in: ast)
@@ -501,11 +539,11 @@ extension AST {
         switch c.value {
         case let .equality(n, e):
           let n = ast[n]
-          tokens.append(SemanticToken(range: n.site, type: TokenType.type.rawValue))
+          addToken(range: n.site, type: TokenType.type)
           addExpr(e, in: ast)
         case let .conformance(n, _):
           let n = ast[n]
-          tokens.append(SemanticToken(range: n.site, type: TokenType.type.rawValue))
+          addToken(range: n.site, type: TokenType.type)
         case let .value(e):
           addExpr(e, in: ast)
         }
@@ -514,7 +552,7 @@ extension AST {
 
     mutating func addLabel(_ label: SourceRepresentable<Identifier>?) {
       if let label = label {
-        tokens.append(SemanticToken(range: label.site, type: TokenType.label.rawValue))
+        addToken(range: label.site, type: TokenType.label)
       }
     }
 
@@ -528,7 +566,7 @@ extension AST {
     mutating func addConformances(_ conformances: [NameExpr.ID], in ast: AST) {
       for id in conformances {
         let n = ast[id]
-        tokens.append(SemanticToken(range: n.site, type: TokenType.type.rawValue))
+        addToken(range: n.site, type: TokenType.type)
       }
     }
 
@@ -544,12 +582,12 @@ extension AST {
 
       for id in genericClause.parameters {
         let p = ast[id]
-        tokens.append(SemanticToken(range: p.identifier.site, type: TokenType.type.rawValue))
+        addToken(range: p.identifier.site, type: TokenType.type)
         addConformances(p.conformances, in: ast)
 
         if let id = p.defaultValue {
           let defaultValue = ast[id]
-          tokens.append(SemanticToken(range: defaultValue.site, type: TokenType.type.rawValue))
+          addToken(range: defaultValue.site, type: TokenType.type)
         }
       }
     }
