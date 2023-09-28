@@ -187,21 +187,6 @@ public struct HyloNotificationHandler : NotificationHandler {
 
 }
 
-public enum TokenType : UInt32, CaseIterable {
-  case type
-  case identifier
-  case number
-  case string
-  case variable
-  case label
-  case `operator`
-  case function
-  case keyword
-
-  var description: String {
-      return String(describing: self)
-  }
-}
 
 public struct HyloRequestHandler : RequestHandler {
   public let lsp: JSONRPCServer

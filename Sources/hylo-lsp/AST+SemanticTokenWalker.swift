@@ -234,6 +234,7 @@ extension AST {
       addExpr(p.defaultValue, in: ast)
     }
 
+    // https://code.visualstudio.com/api/language-extensions/semantic-highlight-guide#standard-token-types-and-modifiers
     func tokenType(_ d: AnyDeclID) -> TokenType {
       switch d.kind {
         case ProductTypeDecl.self: .type
@@ -241,7 +242,7 @@ extension AST {
         case AssociatedTypeDecl.self: .type
         case ExtensionDecl.self: .type
         case ConformanceDecl.self: .type
-        case GenericParameterDecl.self: .type
+        case GenericParameterDecl.self: .typeParameter
         case TraitDecl.self: .type
         case InitializerDecl.self: .function
         case SubscriptDecl.self: .function
@@ -249,8 +250,9 @@ extension AST {
         case MethodDecl.self: .function
         case VarDecl.self: .variable
         case BindingDecl.self: .variable
-        case ParameterDecl.self: .variable
-        default: .identifier
+        case ParameterDecl.self: .parameter
+        case ModuleDecl.self: .namespace
+        default: .unknown
       }
     }
 
@@ -269,9 +271,9 @@ extension AST {
         case let .member(id, _, _):
           tokenType(id)
         case .builtinModule:
-          .identifier
+          .namespace
         case nil:
-          .identifier
+          .unknown
       }
     }
 
@@ -301,7 +303,7 @@ extension AST {
           let n = NameExpr.ID(expr)!
           let d = program.referredDecl[n]
           let t = tokenType(d)
-          if d != nil && t == .identifier {
+          if d != nil && t == .unknown {
             print("Unknown decl reference: \(d!)")
           }
 
