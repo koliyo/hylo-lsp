@@ -4,10 +4,6 @@
 import PackageDescription
 import Foundation
 
-// let pwd = FileManager.default.currentDirectoryPath
-// let pkgConfigPath = "\(pwd)/val"
-// setenv("PKG_CONFIG_PATH", pkgConfigPath, 1)
-// print("pkgConfigPath: \(pkgConfigPath)")
 
 let package = Package(
   name: "hylo-lsp",

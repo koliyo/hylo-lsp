@@ -34,21 +34,43 @@ struct Options: ParsableArguments {
     @Argument(help: "Hylo document filepath")
     var document: String
 
+    public func parseDocument() throws -> (path: String, line: UInt?) {
+
+      let search1 = #/(.+)(?::(\d+))/#
+
+      var path = document
+      var line: UInt?
+
+      if let result = try? search1.wholeMatch(in: document) {
+        path = String(result.1)
+        guard let l = UInt(result.2) else {
+          throw ValidationError("Invalid document line number: \(result.2)")
+        }
+
+        line = l
+      }
+
+      return (String(path), line)
+    }
+
     func validate() throws {
+      let (path, _) = try parseDocument()
+
       let fm = FileManager.default
       var isDirectory: ObjCBool = false
 
-      guard document.hasSuffix(".hylo") else {
-        throw ValidationError("document does not have .hylo suffix: \(document)")
+      guard path.hasSuffix(".hylo") else {
+        throw ValidationError("document does not have .hylo suffix: \(path)")
       }
 
-      guard fm.fileExists(atPath: document, isDirectory: &isDirectory) else {
-        throw ValidationError("document filepath does not exist: \(document)")
+      guard fm.fileExists(atPath: path, isDirectory: &isDirectory) else {
+        throw ValidationError("document filepath does not exist: \(path)")
       }
 
       guard !isDirectory.boolValue else {
-        throw ValidationError("document filepath is a directory: \(document)")
+        throw ValidationError("document filepath is a directory: \(path)")
       }
+
     }
 }
 
@@ -59,7 +81,7 @@ struct HyloLspCommand: AsyncParsableCommand {
     static var configuration = CommandConfiguration(
         abstract: "HyloLSP command line client",
         subcommands: [SemanticToken.self, Diagnostics.self],
-        defaultSubcommand: SemanticToken.self)
+        defaultSubcommand: nil)
 
 }
 
@@ -67,7 +89,8 @@ extension HyloLspCommand {
   struct Diagnostics : AsyncParsableCommand {
     @OptionGroup var options: Options
     func run() async throws {
-      let docURL = URL.init(fileURLWithPath: options.document)
+      let (doc, _) = try options.parseDocument()
+      let docURL = URL.init(fileURLWithPath: doc)
 
       let (clientChannel, serverChannel) = DataChannel.withDataActor()
 
@@ -93,8 +116,8 @@ extension HyloLspCommand {
   struct SemanticToken : AsyncParsableCommand {
     @OptionGroup var options: Options
 
-    @Option(help: "Specific row (1-based row counting)")
-    var row: Int?
+    // @Option(help: "Specific row (1-based row counting)")
+    // var row: Int?
 
     func validate() throws {
     }
@@ -103,7 +126,9 @@ extension HyloLspCommand {
       logger.logLevel = options.log
       // let docURL = URL.init(fileURLWithPath:"hylo/Examples/factorial.hylo")
       // let docURL = URL.init(fileURLWithPath:"hylo/Library/Hylo/Array.hylo")
-      let docURL = URL.init(fileURLWithPath: options.document)
+      // let docURL = URL.init(fileURLWithPath: options.document)
+      let (doc, row) = try options.parseDocument()
+      let docURL = URL.init(fileURLWithPath: doc)
 
       if let pipe = options.pipe {
         print("starting client witn named pipe: \(pipe)")
