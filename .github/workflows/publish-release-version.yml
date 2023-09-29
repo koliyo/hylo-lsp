@@ -3,10 +3,9 @@ name: Publish release version
 on:
   workflow_run:
     workflows: ["Build and test"]
-    # branches: [main]
+    branches: ["**"]
     # tags: ["v*.*.*"]
-    types:
-      - completed
+    types: [requested]
 
 jobs:
   publish-release:
