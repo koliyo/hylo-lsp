@@ -35,6 +35,8 @@ public class LspState {
       let inputs = [URL.init(string: uri)!]
       return try _buildProgram(inputs)
     }
+
+    logger.debug("Register opened document: \(uri)")
     documents[uri] = Document(uri: uri, task: task)
   }
 
@@ -98,7 +100,7 @@ public struct HyloNotificationHandler : NotificationHandler {
 
   func buildDocument(_ uri: DocumentUri) async {
     state.uri = uri
-    logger.debug("textDocumentDidOpen: \(uri)")
+    // logger.debug("buildDocument: \(uri)")
     // logger.debug("lib uri: \(HyloModule.standardLibrary!.absoluteString)")
     // if uri.commonPrefix(with: HyloModule.standardLibrary!.absoluteString) == HyloModule.standardLibrary!.absoluteString {
     if uri.contains("hylo/Library/Hylo") {
@@ -280,10 +282,29 @@ public struct HyloRequestHandler : RequestHandler {
 
   }
 
+  func locationLink<T>(_ d: T) -> LocationLink where T: NodeIDProtocol {
+    let range = ast[d].site
+    let targetUri = range.file.url
+    var selectionRange = LSPRange(range)
+
+    if let d = AnyDeclID(d) {
+      selectionRange = LSPRange(nameRange(of: d) ?? range)
+    }
+
+    return LocationLink(targetUri: targetUri.absoluteString, targetRange: LSPRange(range), targetSelectionRange: selectionRange)
+  }
+
+  func locationResponse<T>(_ d: T) -> DefinitionResponse where T: NodeIDProtocol{
+    let location = locationLink(d)
+    return .optionC([location])
+  }
+
   public func definition(_ params: TextDocumentPositionParams, _ program: TypedProgram) async -> Result<DefinitionResponse, AnyJSONRPCResponseError> {
-    let url = URL.init(string: params.textDocument.uri)!
+
+
+    let url = getDocumentUrl(params.textDocument)
     guard let f = try? SourceFile(contentsOf: url) else {
-      return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Invalid document uri"))
+      return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Invalid document uri: \(url)"))
     }
 
     let pos = params.position
@@ -291,103 +312,105 @@ public struct HyloRequestHandler : RequestHandler {
     let p = SourcePosition(line: pos.line+1, column: pos.character+1, in: f)
     logger.debug("Look for symbol definition at position: \(p)")
 
-    if let id = ast.findNode(p) {
-      // logger.debug("found: \(id), in num nodes: \(ast.numNodes)")
-      // let s = program.nodeToScope[id]
-      let node = ast[id]
-      logger.debug("Found node: \(node), id: \(id)")
+    guard let id = ast.findNode(p) else {
+      logger.warning("Did not find node @ \(p)")
+      return .success(nil)
+    }
 
-      let locationFromDecl = { (d: AnyDeclID) in
+    // logger.debug("found: \(id), in num nodes: \(ast.numNodes)")
+    // let s = program.nodeToScope[id]
+    let node = ast[id]
+    logger.debug("Found node: \(node), id: \(id)")
+
+
+    if let d = AnyDeclID(id) {
+      return .success(locationResponse(d))
+    }
+
+    if let n = NameExpr.ID(id) {
+      // let d = program[n].referredDecl
+      let d = program.referredDecl[n]
+
+      if d == nil {
+        if let t = program.exprType[n] {
+
+          switch t.base {
+          case let u as ProductType:
+            return .success(locationResponse(u.decl))
+          case let u as TypeAliasType:
+            return .success(locationResponse(u.decl))
+          case let u as AssociatedTypeType:
+            return .success(locationResponse(u.decl))
+          case let u as GenericTypeParameterType:
+            return .success(locationResponse(u.decl))
+          case let u as NamespaceType:
+            return .success(locationResponse(u.decl))
+          case let u as TraitType:
+            return .success(locationResponse(u.decl))
+          default:
+            fatalError("not implemented")
+          }
+        }
+
+        if let x = AnyPatternID(id) {
+          logger.debug("pattern: \(x)")
+        }
+
+        if let s = program.nodeToScope[id] {
+          logger.debug("scope: \(s)")
+          if let decls = program.scopeToDecls[s] {
+            for d in decls {
+                if let t = program.declType[d] {
+                  logger.debug("decl: \(d), type: \(t)")
+                }
+            }
+          }
+
+
+          if let fn = ast[s] as? FunctionDecl {
+            logger.debug("TODO: Need to figure out how to get resolved return type of function signature: \(fn.site)")
+            return .success(nil)
+            // return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO: Need to figure out how to get resolved return type of function signature: \(fn.site)"))
+          }
+        }
+
+        // return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Internal error, must be able to resolve declaration"))
+        await logInternalError("Internal error, must be able to resolve declaration")
+        return .success(nil)
+      }
+
+      switch d {
+      case let .constructor(d, _):
+        let initializer = ast[d]
         let range = ast[d].site
-        let selectionRange = LSPRange(nameRange(of: d) ?? range)
-        return LocationLink(targetUri: url.absoluteString, targetRange: LSPRange(range), targetSelectionRange: selectionRange)
-      }
-
-      let locationResponseFromDecl = { (d: AnyDeclID) -> DefinitionResponse in
-        let location = locationFromDecl(d)
-        return .optionC([location])
-      }
-
-      if let d = AnyDeclID(id) {
-        return .success(locationResponseFromDecl(d))
-      }
-
-      if let n = NameExpr.ID(id) {
-        // let d = program[n].referredDecl
-        let d = program.referredDecl[n]
-
-        if d == nil {
-          if let t = program.exprType[n] {
-
-            switch t.base {
-            case let u as ProductType:
-              return .success(locationResponseFromDecl(AnyDeclID(u.decl)))
-            case let u as TypeAliasType:
-              return .success(locationResponseFromDecl(AnyDeclID(u.decl)))
-            case let u as AssociatedTypeType:
-              return .success(locationResponseFromDecl(AnyDeclID(u.decl)))
-            case let u as GenericTypeParameterType:
-              return .success(locationResponseFromDecl(AnyDeclID(u.decl)))
-            case let u as NamespaceType:
-              return .success(locationResponseFromDecl(AnyDeclID(u.decl)))
-            case let u as TraitType:
-              return .success(locationResponseFromDecl(AnyDeclID(u.decl)))
-            default:
-              fatalError("not implemented")
-            }
-          }
-
-          if let x = AnyPatternID(id) {
-            logger.debug("pattern: \(x)")
-          }
-
-          if let s = program.nodeToScope[id] {
-            logger.debug("scope: \(s)")
-            if let decls = program.scopeToDecls[s] {
-              for d in decls {
-                  if let t = program.declType[d] {
-                    logger.debug("decl: \(d), type: \(t)")
-                  }
-              }
-            }
-
-
-            if let fn = ast[s] as? FunctionDecl {
-              logger.debug("TODO: Need to figure out how to get resolved return type of function signature: \(fn.site)")
-              return .success(nil)
-              // return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "TODO: Need to figure out how to get resolved return type of function signature: \(fn.site)"))
-            }
-          }
-
-          // return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Internal error, must be able to resolve declaration"))
-          await logInternalError("Internal error, must be able to resolve declaration")
-          return .success(nil)
-        }
-
-        switch d {
-        case let .constructor(d, _):
-          let initializer = ast[d]
-          let range = ast[d].site
-          let selectionRange = LSPRange(initializer.introducer.site)
-          let response = LocationLink(targetUri: url.absoluteString, targetRange: LSPRange(range), targetSelectionRange: selectionRange)
-          return .success(.optionC([response]))
-        case let .direct(d, args):
-          logger.debug("d: \(d), generic args: \(args), name: \(program.name(of: d) ?? "__noname__")")
-          // let fnNode = ast[d]
-          // let range = LSPRange(hylocRange: fnNode.site)
-          return .success(locationResponseFromDecl(d))
-          // if let fid = FunctionDecl.ID(d) {
-          //   let f = sourceModule.functions[Function.ID(fid)]!
-          //   logger.debug("Function: \(f)")
-          // }
-        default:
-          await logInternalError("Unknown declaration kind: \(d!)")
-        }
-
+        let selectionRange = LSPRange(initializer.introducer.site)
+        let response = LocationLink(targetUri: url.absoluteString, targetRange: LSPRange(range), targetSelectionRange: selectionRange)
+        return .success(.optionC([response]))
+      case let .builtinFunction(f):
+        logger.warning("builtinFunction: \(node)")
+        return .success(nil)
+      case .compilerKnownType:
+        logger.warning("compilerKnownType: \(node)")
+        return .success(nil)
+      case let .member(m, _, _):
+        return .success(locationResponse(m))
+      case let .direct(d, args):
+        logger.debug("direct declaration: \(d), generic args: \(args), name: \(program.name(of: d) ?? "__noname__")")
+        // let fnNode = ast[d]
+        // let range = LSPRange(hylocRange: fnNode.site)
+        return .success(locationResponse(d))
+        // if let fid = FunctionDecl.ID(d) {
+        //   let f = sourceModule.functions[Function.ID(fid)]!
+        //   logger.debug("Function: \(f)")
+        // }
+      default:
+        logger.error("Unknown declaration kind: \(d!)")
+        break
       }
 
     }
 
+    logger.warning("Unknown node: \(node)")
     return .success(nil)
   }
 
@@ -466,9 +489,40 @@ public struct HyloRequestHandler : RequestHandler {
     }
   }
 
+  func getDocumentUrl(_ textDocument: TextDocumentIdentifier) -> URL {
+
+    // Check if fully qualified url
+    if let url = URL(string: textDocument.uri) {
+      if url.scheme != nil {
+        return url
+      }
+    }
+
+    let s = textDocument.uri as NSString
+
+    // Check if absoult path
+    if s.isAbsolutePath {
+      return URL(fileURLWithPath: textDocument.uri)
+    }
+    else {
+      // TODO: Relative path is not generally supported, potenitially using rootUri, or single workspace entry
+      let fm = FileManager.default
+      let p = NSString.path(withComponents: [fm.currentDirectoryPath, textDocument.uri])
+      return URL(fileURLWithPath: p)
+    }
+  }
+
+  func getDocumentUri(_ textDocument: TextDocumentIdentifier) -> DocumentUri {
+    return getDocumentUrl(textDocument).absoluteString
+  }
+
+  func getDocument(_ textDocument: TextDocumentIdentifier) -> Document? {
+    return state.documents[getDocumentUri(textDocument)]
+  }
+
   public func diagnostics(_ params: DocumentDiagnosticParams) async -> Result<DocumentDiagnosticReport, AnyJSONRPCResponseError> {
-    guard let d = state.documents[params.textDocument.uri] else {
-      return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Expected an opened document"))
+    guard let d = getDocument(params.textDocument) else {
+      return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Expected an opened document: \(params.textDocument.uri)"))
     }
 
     do {
@@ -511,8 +565,8 @@ public struct HyloRequestHandler : RequestHandler {
   }
 
   func withProgram<ResponseT>(_ textDocument: TextDocumentIdentifier, fn: (TypedProgram) async -> Result<ResponseT?, AnyJSONRPCResponseError>) async -> Result<ResponseT?, AnyJSONRPCResponseError> {
-    guard let d = state.documents[textDocument.uri] else {
-      return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Expected an opened document"))
+    guard let d = getDocument(textDocument) else {
+      return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Expected an opened document: \(textDocument.uri)"))
     }
 
     do {

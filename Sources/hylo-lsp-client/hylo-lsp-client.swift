@@ -2,6 +2,7 @@ import Foundation
 import LanguageClient
 // import ProcessEnv
 import LanguageServerProtocol
+import LanguageServerProtocol_Client
 import JSONRPC
 import UniSocket
 import JSONRPC_DataChannel_UniSocket
@@ -34,12 +35,13 @@ struct Options: ParsableArguments {
     @Argument(help: "Hylo document filepath")
     var document: String
 
-    public func parseDocument() throws -> (path: String, line: UInt?) {
+    public func parseDocument() throws -> (path: String, line: UInt?, char: UInt?) {
 
-      let search1 = #/(.+)(?::(\d+))/#
+      let search1 = #/(.+)(?::(\d+)(?:\.(\d+))?)/#
 
       var path = document
       var line: UInt?
+      var char: UInt?
 
       if let result = try? search1.wholeMatch(in: document) {
         path = String(result.1)
@@ -48,13 +50,21 @@ struct Options: ParsableArguments {
         }
 
         line = l
+
+        if let c = result.3 {
+          guard let c = UInt(c) else {
+            throw ValidationError("Invalid document char number: \(result.2)")
+          }
+
+          char = c
+        }
       }
 
-      return (String(path), line)
+      return (String(path), line, char)
     }
 
     func validate() throws {
-      let (path, _) = try parseDocument()
+      let (path, _, _) = try parseDocument()
 
       let fm = FileManager.default
       var isDirectory: ObjCBool = false
@@ -80,7 +90,11 @@ struct HyloLspCommand: AsyncParsableCommand {
 
     static var configuration = CommandConfiguration(
         abstract: "HyloLSP command line client",
-        subcommands: [SemanticToken.self, Diagnostics.self],
+        subcommands: [
+          SemanticToken.self,
+          Diagnostics.self,
+          Definition.self,
+        ],
         defaultSubcommand: nil)
 }
 
@@ -91,23 +105,85 @@ public func cliLink(uri: String, range: LSPRange) -> String {
   "\(uri):\(range.start.line+1):\(range.start.character+1)"
 }
 
+func initServer(workspace: String? = nil, documents: [String]) async throws -> RestartingServer<
+  JSONRPCServer
+> {
+  let fm = FileManager.default
+  let workspace = URL.init(fileURLWithPath: workspace ?? fm.currentDirectoryPath)
+
+  let docUrls = documents.map { URL.init(fileURLWithPath: $0) }
+
+  let (clientChannel, serverChannel) = DataChannel.withDataActor()
+
+  // Run the LSP Server in a background task
+  Task {
+    let server = HyloServer(serverChannel, logger: logger)
+    await server.run()
+  }
+
+  // Return the RPC server (client side)
+  return try await createServer(channel: clientChannel, workspace: workspace, documents: docUrls)
+}
+
 extension HyloLspCommand {
+
+  struct Definition : AsyncParsableCommand {
+    @OptionGroup var options: Options
+    func run() async throws {
+      logger.logLevel = options.log
+      let (doc, line, char) = try options.parseDocument()
+
+      guard let line = line else {
+        throw ValidationError("Invalid position")
+      }
+
+      guard let char = char else {
+        throw ValidationError("Invalid position")
+      }
+
+      let pos = Position(line: Int(line-1), character: Int(char-1))
+
+      let server = try await initServer(documents: [doc])
+      let params = TextDocumentPositionParams(uri: doc, position: pos)
+
+      let definition = try await server.definition(params: params)
+
+      switch definition {
+        case nil:
+          print("No definition")
+        case let .optionA(l):
+          printLocation(l)
+        case let .optionB(l):
+          for l in l {
+            printLocation(l)
+          }
+        case let .optionC(l):
+          for l in l {
+            printLocation(l)
+          }
+      }
+    }
+
+    func locationLink(_ l: Location) -> LocationLink {
+      LocationLink(targetUri: l.uri, targetRange: l.range, targetSelectionRange: LSPRange(start: Position.zero, end: Position.zero))
+    }
+
+    func printLocation(_ l: Location) {
+      printLocation(locationLink(l))
+    }
+
+    func printLocation(_ l: LocationLink) {
+      print("\(cliLink(uri: l.targetUri, range: l.targetRange))")
+    }
+  }
+
   struct Diagnostics : AsyncParsableCommand {
     @OptionGroup var options: Options
     func run() async throws {
-      let (doc, _) = try options.parseDocument()
+      logger.logLevel = options.log
+      let (doc, line, _) = try options.parseDocument()
       let docURL = URL.init(fileURLWithPath: doc)
-
-      let (clientChannel, serverChannel) = DataChannel.withDataActor()
-
-      Task {
-        let server = HyloServer(serverChannel, logger: logger)
-        await server.run()
-      }
-
-      // await RunHyloClientTests(channel: clientChannel, docURL: docURL)
-      let server = try await createServer(channel: clientChannel, docURL: docURL)
-
+      let server = try await initServer(documents: [doc])
 
       let params = DocumentDiagnosticParams(textDocument: TextDocumentIdentifier(uri: docURL.absoluteString))
       let report = try await server.diagnostics(params: params)
@@ -135,46 +211,39 @@ extension HyloLspCommand {
       // let docURL = URL.init(fileURLWithPath:"hylo/Examples/factorial.hylo")
       // let docURL = URL.init(fileURLWithPath:"hylo/Library/Hylo/Array.hylo")
       // let docURL = URL.init(fileURLWithPath: options.document)
-      let (doc, row) = try options.parseDocument()
+      let (doc, line, _) = try options.parseDocument()
       let docURL = URL.init(fileURLWithPath: doc)
+      let workspace = docURL.deletingLastPathComponent()
 
       if let pipe = options.pipe {
         print("starting client witn named pipe: \(pipe)")
-        let fileManager = FileManager.default
+        // let fileManager = FileManager.default
 
-        // Check if file exists
-        if fileManager.fileExists(atPath: pipe) {
-            // Delete file
-            print("delete existing socket: \(pipe)")
-            try fileManager.removeItem(atPath: pipe)
-        }
+        // // Check if file exists
+        // if fileManager.fileExists(atPath: pipe) {
+        //     // Delete file
+        //     print("delete existing socket: \(pipe)")
+        //     try fileManager.removeItem(atPath: pipe)
+        // }
 
-        let socket = try UniSocket(type: .local, peer: pipe)
-        try socket.bind()
-        try socket.listen()
-        let client = try socket.accept()
-        print("lsp attached")
-        client.timeout = (connect: 5, read: nil, write: 5)
-        let clientChannel = DataChannel(socket: client)
-        await RunHyloClientTests(channel: clientChannel, docURL: docURL)
+        // let socket = try UniSocket(type: .local, peer: pipe)
+        // try socket.bind()
+        // try socket.listen()
+        // let client = try socket.accept()
+        // print("lsp attached")
+        // client.timeout = (connect: 5, read: nil, write: 5)
+        // let clientChannel = DataChannel(socket: client)
+        // await RunHyloClientTests(channel: clientChannel, docURL: docURL)
       }
       else {
-        let (clientChannel, serverChannel) = DataChannel.withDataActor()
 
-        Task {
-          let server = HyloServer(serverChannel, logger: logger)
-          await server.run()
-        }
-
-        // await RunHyloClientTests(channel: clientChannel, docURL: docURL)
-        let server = try await createServer(channel: clientChannel, docURL: docURL)
-
+        let server = try await initServer(documents: [doc])
         let params = SemanticTokensParams(textDocument: TextDocumentIdentifier(uri: docURL.absoluteString))
         if let tokensData = try await server.semanticTokensFull(params: params) {
           var tokens = tokensData.decode()
 
-          if let row = row {
-            tokens = tokens.filter { $0.line+1 == row }
+          if let line = line {
+            tokens = tokens.filter { $0.line+1 == line }
           }
 
           for t in tokens {
