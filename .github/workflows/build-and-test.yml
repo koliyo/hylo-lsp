@@ -134,13 +134,13 @@ jobs:
     - name: Build (${{ matrix.configuration }})
       run: |
         set -eo pipefail
-        export PKG_CONFIG_PATH=$PWD
+        export PKG_CONFIG_PATH=$PWD/hylo
         swift build -c ${{ matrix.configuration }} ${{ matrix.host.build-options }}
 
     - name: Test (${{ matrix.configuration }})
       run: |
         set -eo pipefail
-        export PKG_CONFIG_PATH=$PWD
+        export PKG_CONFIG_PATH=$PWD/hylo
         swift test -c ${{ matrix.configuration }} ${{ matrix.host.test-options }} |
           tee testoutput.txt && (
             (grep -q "[.']EndToEndTests[/. ]test_" testoutput.txt && grep -q "[.']HyloTests[/. ]test_" testoutput.txt) ||
