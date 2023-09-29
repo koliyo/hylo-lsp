@@ -161,11 +161,12 @@ jobs:
         npm install
         npm run vscode:package
 
-    - uses: actions/upload-artifact@v3
+    - name: Upload VSCode extension artifacts (${{ matrix.configuration }})
+      uses: actions/upload-artifact@v3
       with:
-        name: dist-without-markdown
+        name: vscode-extension-artifacts
         path: |
-          hylo-vscode-extension/hyloc-lsp-*.vsix
+          hylo-vscode-extension/hyloc-lang-*.vsix
           dist
           !dist/**/*.md
 
