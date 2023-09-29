@@ -24,11 +24,14 @@ extension AST {
         }
       }
 
+
       // NOTE: We should cache root node per file
 
       if site.file != query.file {
         return false
       }
+
+      // logger.debug("Enter: \(site), id: \(n)")
 
       if site.start > query.index {
         return false
