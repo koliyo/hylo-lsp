@@ -34,7 +34,7 @@ struct DocumentSymbolWalker {
 
   mutating func addDecl(_ id: AnyDeclID) {
     let node = ast[id]
-    logger.debug("Found symbol node: \(id), site: \(node.site)")
+    // logger.debug("Found symbol node: \(id), site: \(node.site)")
     symbols.append(id)
     addMembers(id: id, node: node)
   }
@@ -56,44 +56,6 @@ struct DocumentSymbolWalker {
       // print("Ignored declaration node: \(node)")
       break
     }
-  }
-
-
-  mutating func willEnter(_ n: AnyNodeID, in ast: AST) -> Bool {
-    let node = ast[n]
-    let site = node.site
-
-    if let scheme = site.file.url.scheme {
-      if scheme == "synthesized" {
-        return true
-      }
-      else if n.kind == TranslationUnit.self && scheme == "file" {
-        if site.file.url.absoluteString != document {
-          // logger.debug("Ignore file: \(site.file.url)")
-          return false
-        }
-        // logger.debug("Enter file: \(site.file.url)")
-      }
-    }
-
-    if n.kind == NamespaceDecl.self || n.kind == TranslationUnit.self {
-      return true
-    }
-
-
-    if n.kind == BindingDecl.self {
-      return true
-    }
-
-    // if n.kind == FunctionDecl.self || n.kind == VarDecl.self {
-    if let d = AnyDeclID(n) {
-      logger.debug("Found symbol node: \(d), site: \(site)")
-      symbols.append(d)
-      return false
-    }
-
-    // logger.debug("Ignore node: \(n)")
-    return true
   }
 }
 
