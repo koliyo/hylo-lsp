@@ -166,7 +166,7 @@ jobs:
       with:
         name: vscode-extension-artifacts
         path: |
-          hylo-vscode-extension/hyloc-lang-*.vsix
+          hylo-vscode-extension/hylo-lang-*.vsix
           dist
           !dist/**/*.md
 
