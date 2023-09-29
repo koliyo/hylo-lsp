@@ -3,7 +3,7 @@ import FrontEnd
 import IR
 
 extension AST {
-  struct NodeFinder: ASTWalkObserver {
+  private struct NodeFinder: ASTWalkObserver {
     // var outermostFunctions: [FunctionDecl.ID] = []
     let query: SourcePosition
     private(set) var match: AnyNodeID?
