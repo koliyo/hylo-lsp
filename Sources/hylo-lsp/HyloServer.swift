@@ -27,25 +27,65 @@ public class LspState {
     // self.ast = ast
     self.lsp = lsp
     self.documents = [:]
+
+    if let path = ProcessInfo.processInfo.environment["HYLO_STDLIB_PATH"] {
+      logger.info("Hylo stdlib filepath from HYLO_STDLIB_PATH: \(path)")
+      defaultStdlibFilepath = URL(fileURLWithPath: path)
+    }
+    else {
+      defaultStdlibFilepath = HyloModule.standardLibrary
+    }
   }
 
-  public func buildStdlibAST() throws -> AST {
-    return try AST(libraryRoot: HyloModule.standardLibrary)
+  let defaultStdlibFilepath: URL
+
+  public func isStdlibDocument(_ uri: DocumentUri) -> Bool {
+    let (_, isStdlibDocument) = getStdlibPath(uri)
+    return isStdlibDocument
   }
 
-  // var task: Task<TypedProgram, Error>?
-
-  public func buildProgram(_ uri: DocumentUri) {
-    let task = Task {
-      let inputs = [URL.init(string: uri)!]
-      return try _buildProgram(inputs)
+  func getStdlibPath(_ uri: DocumentUri) -> (stdlibPath: URL, isStdlibDocument: Bool) {
+    guard let url = URL(string: uri) else {
+      logger.error("invalid document uri: \(uri)")
+      return (defaultStdlibFilepath, false)
     }
 
-    logger.debug("Register opened document: \(uri)")
-    documents[uri] = Document(uri: uri, task: task)
+    var it = url.deletingLastPathComponent()
+
+    // Check if current document is inside a stdlib source directory
+    while it.path != "/" {
+      let voidPath = NSString.path(withComponents: [it.path, "Core", "Void.hylo"])
+      let fm = FileManager.default
+      var isDirectory: ObjCBool = false
+      if fm.fileExists(atPath: voidPath, isDirectory: &isDirectory) && !isDirectory.boolValue {
+        // let relUrl = URL(string: url.absoluteString, relativeTo: it)!
+        // logger.info("it: \(it), relUrl: \(relUrl.relativePath), path: \(relUrl.path)")
+        // uri = state.stdlibFilepath.appending(component: relUrl.relativePath).absoluteString
+        return (it, true)
+      }
+
+      it = it.deletingLastPathComponent()
+    }
+
+    return (defaultStdlibFilepath, false)
   }
 
-  public func _buildProgram(_ inputs: [URL]) throws -> (AST, TypedProgram) {
+
+
+  public func buildProgram(_ doc: DocumentUri) {
+    let (stdlibPath, isStdlibDocument) = getStdlibPath(doc)
+
+    let inputs: [URL] = if !isStdlibDocument { [URL.init(string: doc)!] } else { [] }
+
+    let task = Task {
+      return try _buildProgram(stdlibPath: stdlibPath, inputs: inputs)
+    }
+
+    logger.debug("Register opened document: \(doc)")
+    documents[doc] = Document(uri: doc, task: task)
+  }
+
+  public func _buildProgram(stdlibPath: URL, inputs: [URL]) throws -> (AST, TypedProgram) {
     // let inputs = files.map { URL.init(fileURLWithPath: $0)}
     let importBuiltinModule = false
     let compileSequentially = false
@@ -53,7 +93,7 @@ public class LspState {
     var diagnostics = DiagnosticSet()
     logger.debug("buildProgram: \(inputs)")
 
-    var ast = try buildStdlibAST()
+    var ast = try AST(libraryRoot: stdlibPath)
     _ = try ast.makeModule(HyloNotificationHandler.productName, sourceCode: sourceFiles(in: inputs),
     builtinModuleAccess: importBuiltinModule, diagnostics: &diagnostics)
 
@@ -104,37 +144,19 @@ public struct HyloNotificationHandler : NotificationHandler {
 
   }
 
+
   func buildDocument(_ uri: DocumentUri) async {
-    // state.uri = uri
-    // logger.debug("buildDocument: \(uri)")
-    // logger.debug("lib uri: \(HyloModule.standardLibrary!.absoluteString)")
-    // if uri.commonPrefix(with: HyloModule.standardLibrary!.absoluteString) == HyloModule.standardLibrary!.absoluteString {
-    if uri.contains("hylo/Library/Hylo") {
-      // logger.debug("document is lib")
-      state.documents[uri] = Document(uri: uri, ast: state.stdlibAST!, program: state.stdlibProgram!)
-    }
-    else {
-      // logger.debug("document is not lib")
-      // let inputs = [URL.init(string: uri)!]
-      // let inputs = [uri]
-      // let importBuiltinModule = false
-      // let compileSequentially = false
-
-      // var diagnostics = DiagnosticSet()
-
-      state.buildProgram(uri)
-      // withErrorLogging {
-      //   try state.buildProgram(inputs)
-      //   _ = try state.ast.makeModule(HyloNotificationHandler.productName, sourceCode: sourceFiles(in: inputs),
-      //   builtinModuleAccess: importBuiltinModule, diagnostics: &diagnostics)
-
-      //   state.program = try TypedProgram(
-      //   annotating: ScopedProgram(state.ast), inParallel: !compileSequentially,
-      //   reportingDiagnosticsTo: &diagnostics,
-      //   tracingInferenceIf: nil)
-      // }
-    }
-
+    state.buildProgram(uri)
+    // // Check document is part of stdlib
+    // var uri = uri
+    // if isStdlibPath(uri) {
+    //   logger.debug("Document is stdlib member: \(uri)")
+    //   state.documents[uri] = Document(uri: uri, ast: state.stdlibAST!, program: state.stdlibProgram!)
+    //   return
+    // }
+    // else {
+    //   state.buildProgram(uri)
+    // }
   }
 
   public func textDocumentDidOpen(_ params: TextDocumentDidOpenParams) async {
@@ -240,7 +262,8 @@ public struct HyloRequestHandler : RequestHandler {
   public func initialize(_ params: InitializeParams) async -> Result<InitializationResponse, AnyJSONRPCResponseError> {
 
     do {
-      let ast = try state.buildStdlibAST()
+      // let ast = try state.buildStdlibAST()
+      let ast = try AST(libraryRoot: state.defaultStdlibFilepath)
 
       var diagnostics = DiagnosticSet()
       state.stdlibAST = ast
@@ -452,11 +475,32 @@ public struct HyloRequestHandler : RequestHandler {
     switch id.kind {
       case BindingDecl.self: return SymbolKind.field
       case VarDecl.self: return SymbolKind.field
-      case InitializerDecl.self: return SymbolKind.function
+      case InitializerDecl.self: return SymbolKind.constructor
       case FunctionDecl.self: return SymbolKind.function
       case SubscriptDecl.self: return SymbolKind.function
       case ProductTypeDecl.self: return SymbolKind.struct
+      case ConformanceDecl.self: return SymbolKind.struct
+      case TraitDecl.self: return SymbolKind.interface
       default: return SymbolKind.object
+    }
+  }
+
+  func name(of t: AnyType) -> String {
+    switch t.base {
+    case let u as ProductType:
+      return u.name.value
+    case let u as TypeAliasType:
+      return u.name.value
+    case let u as AssociatedTypeType:
+      return u.name.value
+    case let u as GenericTypeParameterType:
+      return u.name.value
+    case let u as NamespaceType:
+      return u.name.value
+    case let u as TraitType:
+      return u.name.value
+    default:
+      fatalError("not implemented")
     }
   }
 
@@ -495,6 +539,18 @@ public struct HyloRequestHandler : RequestHandler {
           range: range,
           selectionRange: selectionRange
         ))
+      case let d as ConformanceDecl:
+        let sub = ast[d.subject]
+        let name = if let t = program.exprType[d.subject]  { name(of: t) } else { "conformance" }
+        lspSymbols.append(DocumentSymbol(
+          name: name,
+          detail: detail,
+          kind: kind(s),
+          range: LSPRange(sub.site),
+          selectionRange: selectionRange
+        ))
+
+
       default:
         if let name = program.name(of: s) {
           lspSymbols.append(DocumentSymbol(

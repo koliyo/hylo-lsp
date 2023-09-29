@@ -20,6 +20,7 @@ extension AST {
       let site = node.site
 
       if node is TranslationUnit {
+        // logger.debug("[\(site.file.url.absoluteString)] Look for document: \(query)")
         if site.file.url.absoluteString == query {
           match = TranslationUnit.ID(n)
         }
@@ -32,6 +33,8 @@ extension AST {
 
   public func findTranslationUnit(_ url: DocumentUri) -> TranslationUnit.ID? {
     var finder = TranslationUnitFinder(url)
+
+    // for m in modules.concatenated(with: [coreLibrary!]) {
     for m in modules {
       walk(m, notifying: &finder)
       if finder.match != nil {
