@@ -11,4 +11,4 @@ cd hylo-vscode-extension
 npm install
 npm run vscode:package
 VERSION=$(cat package.json | jq -r ".version")
-code --install-extension hyloc-lsp-$VERSION.vsix
+code --install-extension hylo-lang-$VERSION.vsix

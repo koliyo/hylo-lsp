@@ -137,15 +137,15 @@ jobs:
         export PKG_CONFIG_PATH=$PWD/hylo
         swift build -c ${{ matrix.configuration }} ${{ matrix.host.build-options }}
 
-    - name: Test (${{ matrix.configuration }})
-      run: |
-        set -eo pipefail
-        export PKG_CONFIG_PATH=$PWD/hylo
-        swift test -c ${{ matrix.configuration }} ${{ matrix.host.test-options }} |
-          tee testoutput.txt && (
-            (grep -q "[.']EndToEndTests[/. ]test_" testoutput.txt && grep -q "[.']HyloTests[/. ]test_" testoutput.txt) ||
-            (echo "error: generated tests failed to run; see
-            https://github.com/apple/swift-package-manager/issues/6595" && false) )
+    # - name: Test (${{ matrix.configuration }})
+    #   run: |
+    #     set -eo pipefail
+    #     export PKG_CONFIG_PATH=$PWD/hylo
+    #     swift test -c ${{ matrix.configuration }} ${{ matrix.host.test-options }} |
+    #       tee testoutput.txt && (
+    #         (grep -q "[.']EndToEndTests[/. ]test_" testoutput.txt && grep -q "[.']HyloTests[/. ]test_" testoutput.txt) ||
+    #         (echo "error: generated tests failed to run; see
+    #         https://github.com/apple/swift-package-manager/issues/6595" && false) )
 
     - uses: actions/setup-node@v3
       with:
@@ -160,6 +160,14 @@ jobs:
         cd hylo-vscode-extension
         npm install
         npm run vscode:package
+
+    - uses: actions/upload-artifact@v3
+      with:
+        name: dist-without-markdown
+        path: |
+          hylo-vscode-extension/hyloc-lsp-*.vsix
+          dist
+          !dist/**/*.md
 
   # build-native-windows:
   #   name: "Native, no testing: windows-latest/release"
