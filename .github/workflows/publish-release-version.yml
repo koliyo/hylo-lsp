@@ -1,13 +1,14 @@
 name: Publish release version
 
 on:
-  workflow_run:
-    workflows: ["Build and test"]
+  push:
     tags: ["v*.*.*"]
-    types: [completed]
 
 jobs:
+  build:
+    uses: ./.github/workflows/build-and-test.yml
   publish-release:
+    needs: [build]
     strategy:
       fail-fast: false
 
@@ -35,9 +36,11 @@ jobs:
       with:
         workflow: build-and-test.yml
         name: vscode-extension-artifacts
+        path: vscode-extension-artifacts
 
     - name: Display structure of downloaded files
-      run: ls -R
+      run: ls -R vscode-extension-artifacts
+      working-directory: vscode-extension-artifacts
 
     - name: Release
       uses: softprops/action-gh-release@v1
@@ -45,3 +48,4 @@ jobs:
         files: |
           hylo-vscode-extension/CHANGELOG.md
           hylo-vscode-extension/LICENSE
+          vscode-extension-artifacts/*.vsix

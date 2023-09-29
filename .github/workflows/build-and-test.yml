@@ -19,8 +19,9 @@ name: Build and test
 #    steps run on Linux platforms, as `act` is implemented with Docker containers.
 
 on:
+  workflow_call:
   push:
-    tags: ["v*.*.*"]
+    # tags: ["v*.*.*"]
     branches: [ main ]
     paths-ignore:
       - "Docs/**"
