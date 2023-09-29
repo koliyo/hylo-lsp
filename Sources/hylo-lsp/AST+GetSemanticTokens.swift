@@ -41,9 +41,8 @@ struct SemanticTokensWalker {
   mutating func addDecl(_ node: Node) {
 
     switch node {
-    case _ as NamespaceDecl:
-      break
-
+    case let d as NamespaceDecl:
+      addMembers(d.members)
     case let d as BindingDecl:
       addBinding(d)
     case let d as InitializerDecl:
@@ -650,14 +649,14 @@ struct SemanticTokensWalker {
 extension AST {
 
   public func getSematicTokens(_ document: DocumentUri, _ program: TypedProgram) -> [SemanticToken] {
-    logger.debug("List symbols in document: \(document)")
+    logger.debug("List semantic tokens in document: \(document)")
 
     guard let translationUnit = findTranslationUnit(document) else {
       logger.error("Failed to locate translation unit: \(document)")
       return []
     }
 
-    var finder = SemanticTokensWalker(document: document, translationUnit: translationUnit, program: program, ast: self)
-    return finder.walk()
+    var walker = SemanticTokensWalker(document: document, translationUnit: self[translationUnit], program: program, ast: self)
+    return walker.walk()
   }
 }

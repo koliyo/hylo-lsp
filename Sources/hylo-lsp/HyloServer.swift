@@ -15,17 +15,22 @@ enum BuildError : Error {
 }
 
 public class LspState {
-  var ast: AST
+  // var ast: AST
   let lsp: JSONRPCServer
   // var program: TypedProgram?
   var documents: [DocumentUri:Document]
+  var stdlibAST: AST?
   var stdlibProgram: TypedProgram?
-  var uri: DocumentUri?
+  // var uri: DocumentUri?
 
-  public init(ast: AST, lsp: JSONRPCServer) {
-    self.ast = ast
+  public init(lsp: JSONRPCServer) {
+    // self.ast = ast
     self.lsp = lsp
     self.documents = [:]
+  }
+
+  public func buildStdlibAST() throws -> AST {
+    return try AST(libraryRoot: HyloModule.standardLibrary)
   }
 
   // var task: Task<TypedProgram, Error>?
@@ -40,7 +45,7 @@ public class LspState {
     documents[uri] = Document(uri: uri, task: task)
   }
 
-  public func _buildProgram(_ inputs: [URL]) throws -> TypedProgram {
+  public func _buildProgram(_ inputs: [URL]) throws -> (AST, TypedProgram) {
     // let inputs = files.map { URL.init(fileURLWithPath: $0)}
     let importBuiltinModule = false
     let compileSequentially = false
@@ -48,6 +53,7 @@ public class LspState {
     var diagnostics = DiagnosticSet()
     logger.debug("buildProgram: \(inputs)")
 
+    var ast = try buildStdlibAST()
     _ = try ast.makeModule(HyloNotificationHandler.productName, sourceCode: sourceFiles(in: inputs),
     builtinModuleAccess: importBuiltinModule, diagnostics: &diagnostics)
 
@@ -56,7 +62,7 @@ public class LspState {
     reportingDiagnosticsTo: &diagnostics,
     tracingInferenceIf: nil)
     logger.debug("program is built")
-    return p
+    return (ast, p)
   }
 
 }
@@ -67,7 +73,7 @@ public struct HyloNotificationHandler : NotificationHandler {
   public let lsp: JSONRPCServer
   public let logger: Logger
   var state: LspState
-  var ast: AST { state.ast }
+  // var ast: AST { state.ast }
   static let productName = "lsp-build"
 
 
@@ -99,13 +105,13 @@ public struct HyloNotificationHandler : NotificationHandler {
   }
 
   func buildDocument(_ uri: DocumentUri) async {
-    state.uri = uri
+    // state.uri = uri
     // logger.debug("buildDocument: \(uri)")
     // logger.debug("lib uri: \(HyloModule.standardLibrary!.absoluteString)")
     // if uri.commonPrefix(with: HyloModule.standardLibrary!.absoluteString) == HyloModule.standardLibrary!.absoluteString {
     if uri.contains("hylo/Library/Hylo") {
       // logger.debug("document is lib")
-      state.documents[uri] = Document(uri: uri, program: state.stdlibProgram!)
+      state.documents[uri] = Document(uri: uri, ast: state.stdlibAST!, program: state.stdlibProgram!)
     }
     else {
       // logger.debug("document is not lib")
@@ -195,7 +201,7 @@ public struct HyloRequestHandler : RequestHandler {
   public let logger: Logger
 
   var state: LspState
-  var ast: AST { state.ast }
+  // var ast: AST { state.ast }
   // var program: TypedProgram? { state.program }
   // var initTask: Task<TypedProgram, Error>
 
@@ -230,12 +236,14 @@ public struct HyloRequestHandler : RequestHandler {
     return s
   }
 
+
   public func initialize(_ params: InitializeParams) async -> Result<InitializationResponse, AnyJSONRPCResponseError> {
 
     do {
-      state.ast = try AST(libraryRoot: HyloModule.standardLibrary)
+      let ast = try state.buildStdlibAST()
 
       var diagnostics = DiagnosticSet()
+      state.stdlibAST = ast
       state.stdlibProgram = try TypedProgram(
       annotating: ScopedProgram(ast), inParallel: true,
       reportingDiagnosticsTo: &diagnostics,
@@ -282,25 +290,24 @@ public struct HyloRequestHandler : RequestHandler {
 
   }
 
-  func locationLink<T>(_ d: T) -> LocationLink where T: NodeIDProtocol {
+  func locationLink<T>(_ d: T, in ast: AST) -> LocationLink where T: NodeIDProtocol {
     let range = ast[d].site
     let targetUri = range.file.url
     var selectionRange = LSPRange(range)
 
     if let d = AnyDeclID(d) {
-      selectionRange = LSPRange(nameRange(of: d) ?? range)
+      selectionRange = LSPRange(nameRange(of: d, in: ast) ?? range)
     }
 
     return LocationLink(targetUri: targetUri.absoluteString, targetRange: LSPRange(range), targetSelectionRange: selectionRange)
   }
 
-  func locationResponse<T>(_ d: T) -> DefinitionResponse where T: NodeIDProtocol{
-    let location = locationLink(d)
+  func locationResponse<T>(_ d: T, in ast: AST) -> DefinitionResponse where T: NodeIDProtocol{
+    let location = locationLink(d, in: ast)
     return .optionC([location])
   }
 
-  public func definition(_ params: TextDocumentPositionParams, _ program: TypedProgram) async -> Result<DefinitionResponse, AnyJSONRPCResponseError> {
-
+  public func definition(_ params: TextDocumentPositionParams, _ program: TypedProgram, _ ast: AST) async -> Result<DefinitionResponse, AnyJSONRPCResponseError> {
 
     let url = getDocumentUrl(params.textDocument)
     guard let f = try? SourceFile(contentsOf: url) else {
@@ -324,7 +331,7 @@ public struct HyloRequestHandler : RequestHandler {
 
 
     if let d = AnyDeclID(id) {
-      return .success(locationResponse(d))
+      return .success(locationResponse(d, in: ast))
     }
 
     if let n = NameExpr.ID(id) {
@@ -336,17 +343,17 @@ public struct HyloRequestHandler : RequestHandler {
 
           switch t.base {
           case let u as ProductType:
-            return .success(locationResponse(u.decl))
+            return .success(locationResponse(u.decl, in: ast))
           case let u as TypeAliasType:
-            return .success(locationResponse(u.decl))
+            return .success(locationResponse(u.decl, in: ast))
           case let u as AssociatedTypeType:
-            return .success(locationResponse(u.decl))
+            return .success(locationResponse(u.decl, in: ast))
           case let u as GenericTypeParameterType:
-            return .success(locationResponse(u.decl))
+            return .success(locationResponse(u.decl, in: ast))
           case let u as NamespaceType:
-            return .success(locationResponse(u.decl))
+            return .success(locationResponse(u.decl, in: ast))
           case let u as TraitType:
-            return .success(locationResponse(u.decl))
+            return .success(locationResponse(u.decl, in: ast))
           default:
             fatalError("not implemented")
           }
@@ -393,12 +400,12 @@ public struct HyloRequestHandler : RequestHandler {
         logger.warning("compilerKnownType: \(node)")
         return .success(nil)
       case let .member(m, _, _):
-        return .success(locationResponse(m))
+        return .success(locationResponse(m, in: ast))
       case let .direct(d, args):
         logger.debug("direct declaration: \(d), generic args: \(args), name: \(program.name(of: d) ?? "__noname__")")
         // let fnNode = ast[d]
         // let range = LSPRange(hylocRange: fnNode.site)
-        return .success(locationResponse(d))
+        return .success(locationResponse(d, in: ast))
         // if let fid = FunctionDecl.ID(d) {
         //   let f = sourceModule.functions[Function.ID(fid)]!
         //   logger.debug("Function: \(f)")
@@ -415,12 +422,12 @@ public struct HyloRequestHandler : RequestHandler {
   }
 
   public func definition(_ params: TextDocumentPositionParams) async -> Result<DefinitionResponse, AnyJSONRPCResponseError> {
-    await withProgram(params.textDocument) { program in
-      await definition(params, program)
+    await withProgram(params.textDocument) { (program, ast) in
+      await definition(params, program, ast)
     }
   }
 
-  public func nameRange(of d: AnyDeclID) -> SourceRange? {
+  public func nameRange(of d: AnyDeclID, in ast: AST) -> SourceRange? {
     // if let e = self.ast[d] as? SingleEntityDecl { return Name(stem: e.baseName) }
 
     switch d.kind {
@@ -443,15 +450,24 @@ public struct HyloRequestHandler : RequestHandler {
 
   func kind(_ id: AnyDeclID) -> SymbolKind {
     switch id.kind {
+      case BindingDecl.self: return SymbolKind.field
       case VarDecl.self: return SymbolKind.field
+      case InitializerDecl.self: return SymbolKind.function
       case FunctionDecl.self: return SymbolKind.function
+      case SubscriptDecl.self: return SymbolKind.function
       case ProductTypeDecl.self: return SymbolKind.struct
       default: return SymbolKind.object
     }
   }
 
-  public func documentSymbol(_ params: DocumentSymbolParams, _ program: TypedProgram) async -> Result<DocumentSymbolResponse, AnyJSONRPCResponseError> {
-    let symbols = ast.listSymbols(params.textDocument.uri)
+  public func documentSymbol(_ params: DocumentSymbolParams, _ program: TypedProgram, _ ast: AST) async -> Result<DocumentSymbolResponse, AnyJSONRPCResponseError> {
+    let symbols = ast.listDocumentSymbols(params.textDocument.uri, program)
+    if symbols.isEmpty {
+      return .success(nil)
+    }
+
+    // TODO: Move symbol lookup to walker
+    // TODO: Use lsp child symbols
     var lspSymbols: [DocumentSymbol] = []
     for s in symbols {
       var detail: String? = nil
@@ -462,11 +478,16 @@ public struct HyloRequestHandler : RequestHandler {
         // detail = "\(type.base)"
       }
 
-      let declRange = ast[s].site
-      let range = LSPRange(declRange)
-      let selectionRange = LSPRange(nameRange(of: s) ?? declRange)
+      let decl = ast[s]
+      let range = LSPRange(decl.site)
+      let selectionRange = LSPRange(nameRange(of: s, in: ast) ?? decl.site)
 
-      if let name = program.name(of: s) {
+      switch decl {
+      case let d as BindingDecl:
+        let p = ast[d.pattern]
+        getSymbols(p.subpattern, program: program, ast: ast, symbols: &lspSymbols)
+      case _ as SubscriptDecl:
+        let name = program.name(of: s) ?? "subscript"
         lspSymbols.append(DocumentSymbol(
           name: name.stem,
           detail: detail,
@@ -474,18 +495,61 @@ public struct HyloRequestHandler : RequestHandler {
           range: range,
           selectionRange: selectionRange
         ))
-      }
-      else {
-        logger.debug("Symbol declaration does not have a name: \(s)")
+      default:
+        if let name = program.name(of: s) {
+          lspSymbols.append(DocumentSymbol(
+            name: name.stem,
+            detail: detail,
+            kind: kind(s),
+            range: range,
+            selectionRange: selectionRange
+          ))
+        }
+        else {
+          logger.debug("Symbol declaration does not have a name: \(s) @ \(decl.site)")
+        }
       }
     }
 
     return .success(.optionA(lspSymbols))
   }
 
+
+  func getSymbols(_ pattern: AnyPatternID, program: TypedProgram, ast: AST, symbols: inout [DocumentSymbol]) {
+    let p = ast[pattern]
+
+    switch p {
+    case let p as NamePattern:
+      let v = ast[p.decl]
+        let detail: String? = if let type = program.declType[p.decl] {
+          type.description
+        }
+        else {
+          nil
+        }
+
+      symbols.append(DocumentSymbol(
+        name: v.identifier.value,
+        detail: detail,
+        kind: SymbolKind.field,
+        range: LSPRange(v.site),
+        selectionRange: LSPRange(v.identifier.site)
+      ))
+
+    case let p as BindingPattern:
+      getSymbols(p.subpattern, program: program, ast: ast, symbols: &symbols)
+    case let p as TuplePattern:
+      for e in p.elements {
+        getSymbols(e.pattern, program: program, ast: ast, symbols: &symbols)
+      }
+    default:
+      logger.debug("Unknown pattern: \(p)")
+    }
+  }
+
   public func documentSymbol(_ params: DocumentSymbolParams) async -> Result<DocumentSymbolResponse, AnyJSONRPCResponseError> {
-    await withProgram(params.textDocument) { program in
-      await documentSymbol(params, program)
+    await withProgram(params.textDocument) { (program, ast) in
+      await documentSymbol(params, program, ast)
     }
   }
 
@@ -552,11 +616,11 @@ public struct HyloRequestHandler : RequestHandler {
   // }
 
 
-  func trySendDiagnostics(_ diagnostics: DiagnosticSet) async {
+  func trySendDiagnostics(_ diagnostics: DiagnosticSet, in uri: DocumentUri) async {
     do {
-      logger.debug("[\(state.uri!)] send diagnostics")
+      logger.debug("[\(uri)] send diagnostics")
       let dList = diagnostics.elements.map { LanguageServerProtocol.Diagnostic($0) }
-      let dp = PublishDiagnosticsParams(uri: state.uri!, diagnostics: dList)
+      let dp = PublishDiagnosticsParams(uri: uri, diagnostics: dList)
       try await lsp.sendNotification(.textDocumentPublishDiagnostics(dp))
     }
     catch {
@@ -564,14 +628,14 @@ public struct HyloRequestHandler : RequestHandler {
     }
   }
 
-  func withProgram<ResponseT>(_ textDocument: TextDocumentIdentifier, fn: (TypedProgram) async -> Result<ResponseT?, AnyJSONRPCResponseError>) async -> Result<ResponseT?, AnyJSONRPCResponseError> {
+  func withProgram<ResponseT>(_ textDocument: TextDocumentIdentifier, fn: (TypedProgram, AST) async -> Result<ResponseT?, AnyJSONRPCResponseError>) async -> Result<ResponseT?, AnyJSONRPCResponseError> {
     guard let d = getDocument(textDocument) else {
       return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Expected an opened document: \(textDocument.uri)"))
     }
 
     do {
-      let program = try await d.task.value
-      return await fn(program)
+      let (ast, program) = try await d.task.value
+      return await fn(program, ast)
     }
     catch let d as DiagnosticSet {
       // await trySendDiagnostics(d)
@@ -586,7 +650,7 @@ public struct HyloRequestHandler : RequestHandler {
   // https://code.visualstudio.com/api/language-extensions/semantic-highlight-guide
   // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_semanticTokens
   public func semanticTokensFull(_ params: SemanticTokensParams) async -> Result<SemanticTokensResponse, AnyJSONRPCResponseError> {
-    await withProgram(params.textDocument) { program in
+    await withProgram(params.textDocument) { (program, ast) in
       let tokens = ast.getSematicTokens(params.textDocument.uri, program)
       logger.debug("[\(params.textDocument.uri)] Return \(tokens.count) semantic tokens")
       return .success(SemanticTokens(tokens: tokens))
@@ -606,8 +670,7 @@ public actor HyloServer {
   public init(_ dataChannel: DataChannel, logger: Logger) {
     lsp = JSONRPCServer(dataChannel)
     let serverInfo = ServerInfo(name: "hylo", version: "0.1.0")
-    let ast = AST()
-    self.state = LspState(ast: ast, lsp: lsp)
+    self.state = LspState(lsp: lsp)
     requestHandler = HyloRequestHandler(lsp: lsp, logger: logger, serverInfo: serverInfo, state: state)
     notificationHandler = HyloNotificationHandler(lsp: lsp, logger: logger, state: state)
 

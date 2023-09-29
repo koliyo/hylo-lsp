@@ -94,6 +94,7 @@ struct HyloLspCommand: AsyncParsableCommand {
           SemanticToken.self,
           Diagnostics.self,
           Definition.self,
+          Symbols.self,
         ],
         defaultSubcommand: nil)
 }
@@ -126,6 +127,46 @@ func initServer(workspace: String? = nil, documents: [String]) async throws -> R
 }
 
 extension HyloLspCommand {
+  struct Symbols : AsyncParsableCommand {
+    @OptionGroup var options: Options
+    func run() async throws {
+      logger.logLevel = options.log
+      let (doc, line, char) = try options.parseDocument()
+      let docURL = URL.init(fileURLWithPath: doc)
+
+      let server = try await initServer(documents: [doc])
+      let params = DocumentSymbolParams(textDocument: TextDocumentIdentifier(uri: docURL.absoluteString))
+
+      let symbols = try await server.documentSymbol(params: params)
+
+      switch symbols {
+        case nil:
+          print("No symbols")
+        case let .optionA(s):
+          if s.isEmpty {
+            print("No symbols")
+          }
+          for s in s {
+            printSymbol(symbolInformation(s, in: doc))
+          }
+        case let .optionB(s):
+          if s.isEmpty {
+            print("No symbols")
+          }
+          for s in s {
+            printSymbol(s)
+          }
+      }
+    }
+
+    func symbolInformation(_ s: DocumentSymbol, in uri: DocumentUri) -> SymbolInformation {
+      SymbolInformation(name: s.name, kind: s.kind, location: Location(uri: uri, range: s.range))
+    }
+
+    func printSymbol(_ s: SymbolInformation) {
+      print("\(cliLink(uri: s.location.uri, range: s.location.range)) name: \(s.name), kind: \(s.kind)")
+    }
+  }
 
   struct Definition : AsyncParsableCommand {
     @OptionGroup var options: Options
