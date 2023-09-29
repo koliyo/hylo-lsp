@@ -10,4 +10,5 @@ cp -fv $BUILD_DIR/hylo-lsp-server hylo-vscode-extension/bin/mac/arm64
 cd hylo-vscode-extension
 npm install
 npm run vscode:package
-code --install-extension hyloc-lsp-0.5.0.vsix
+VERSION=$(cat package.json | jq -r ".version")
+code --install-extension hyloc-lsp-$VERSION.vsix
