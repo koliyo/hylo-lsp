@@ -20,7 +20,7 @@ name: Build and test
 
 on:
   push:
-    branches: [ main, feature/ci-artifacts ]
+    branches: [ main ]
     paths-ignore:
       - "Docs/**"
       - "**.md"
@@ -123,6 +123,7 @@ jobs:
     - name: Generate LLVM pkgconfig file
       run: |
         set -eo pipefail
+        cd hylo
         swift package resolve
         .build/checkouts/Swifty-LLVM/Tools/make-pkgconfig.sh llvm.pc
         cat llvm.pc
