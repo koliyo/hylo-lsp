@@ -1,0 +1,34 @@
+name: Publish release version
+
+on:
+  workflow_run:
+    workflows: ["Build and test"]
+    # branches: [main]
+    tags: ["v*.*.*"]
+    types:
+      - completed
+
+jobs:
+  publish-release:
+    strategy:
+      fail-fast: false
+
+      matrix:
+        host: [
+          {
+            type: macos, os: macos-13,
+            build-options: "-v --build-tests -Xswiftc -enable-testing",
+            # No coverage support on MacOS
+            test-options: "-v"
+          }
+        ]
+
+    runs-on: ${{ matrix.host.os }}
+    steps:
+    # - uses: actions/checkout@v3
+    - uses: actions/download-artifact@v3
+      with:
+        name: vscode-extension-artifacts
+
+    - name: Display structure of downloaded files
+      run: ls -R
