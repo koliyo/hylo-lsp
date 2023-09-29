@@ -3,7 +3,7 @@ name: Publish release version
 on:
   workflow_run:
     workflows: ["Build and test"]
-    tags: ["v*.*.*"]
+    # tags: ["v*.*.*"]
     types: [completed]
 
 jobs:
