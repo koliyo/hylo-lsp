@@ -147,24 +147,24 @@ extension HyloLspCommand {
             print("No symbols")
           }
           for s in s {
-            printSymbol(symbolInformation(s, in: doc))
+            printSymbol(s, in: doc)
           }
         case let .optionB(s):
           if s.isEmpty {
             print("No symbols")
           }
           for s in s {
-            printSymbol(s)
+            printSymbol(documentSymbol(s), in: doc)
           }
       }
     }
 
-    func symbolInformation(_ s: DocumentSymbol, in uri: DocumentUri) -> SymbolInformation {
-      SymbolInformation(name: s.name, kind: s.kind, location: Location(uri: uri, range: s.range))
+    func documentSymbol(_ s: SymbolInformation) -> DocumentSymbol {
+      DocumentSymbol(name: s.name, kind: s.kind, range: s.location.range, selectionRange: s.location.range)
     }
 
-    func printSymbol(_ s: SymbolInformation) {
-      print("\(cliLink(uri: s.location.uri, range: s.location.range)) name: \(s.name), kind: \(s.kind)")
+    func printSymbol(_ s: DocumentSymbol, in uri: DocumentUri) {
+      print("\(cliLink(uri: uri, range: s.range)) name: \(s.name), kind: \(s.kind), selection: \(s.selectionRange)")
     }
   }
 

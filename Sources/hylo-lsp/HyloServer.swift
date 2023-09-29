@@ -549,8 +549,8 @@ public struct HyloRequestHandler : RequestHandler {
           name: name,
           detail: detail,
           kind: kind(s),
-          range: LSPRange(sub.site),
-          selectionRange: selectionRange
+          range: range,
+          selectionRange: LSPRange(sub.site)
         ))
 
 
@@ -568,6 +568,16 @@ public struct HyloRequestHandler : RequestHandler {
           logger.debug("Symbol declaration does not have a name: \(s) @ \(decl.site)")
         }
       }
+    }
+
+    // Validate ranges
+    lspSymbols = lspSymbols.filter { s in
+      if s.selectionRange.start < s.range.start || s.selectionRange.end > s.range.end {
+        logger.error("Invalid symbol ranges, selectionRange is outside range: \(s)")
+        return false
+      }
+
+      return true
     }
 
     return .success(.optionA(lspSymbols))
