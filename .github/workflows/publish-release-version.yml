@@ -15,7 +15,7 @@ jobs:
         host: [
           {
             type: macos, os: macos-13,
-            build-options: "-v --build-tests -Xswiftc -enable-testing",
+            build-options: "--build-tests -Xswiftc -enable-testing",
             # No coverage support on MacOS
             test-options: "-v"
           }
@@ -23,10 +23,25 @@ jobs:
 
     runs-on: ${{ matrix.host.os }}
     steps:
-    # - uses: actions/checkout@v3
-    - uses: actions/download-artifact@v3
+    - name: Checkout
+      uses: actions/checkout@v3
       with:
+        # NOTE: Submodule to get license and changelog from hylo-vscode-extension
+        submodules: 'true'
+
+    - name: Download VSCode extension artifact
+      id: download-artifact
+      uses: dawidd6/action-download-artifact@v2
+      with:
+        workflow: build-and-test.yml
         name: vscode-extension-artifacts
 
     - name: Display structure of downloaded files
       run: ls -R
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          hylo-vscode-extension/CHANGELOG.md
+          hylo-vscode-extension/LICENSE
