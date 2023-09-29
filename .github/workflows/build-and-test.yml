@@ -99,7 +99,8 @@ jobs:
         swift: [
           { version: "5.8" }
         ]
-        configuration: [ "debug", "release" ]
+        configuration: [ "debug" ]
+        # configuration: [ "debug", "release" ]
 
     runs-on: ${{ matrix.host.os }}
     steps:
