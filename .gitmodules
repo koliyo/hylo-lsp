@@ -22,6 +22,3 @@
 [submodule "JSONRPC"]
 	path = JSONRPC
 	url = https://github.com/ChimeHQ/JSONRPC.git
-[submodule "hylo-vs-code-extension"]
-	path = hylo-vs-code-extension
-	url = https://github.com/koliyo/hylo-vs-code-extension.git
