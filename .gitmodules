@@ -7,15 +7,9 @@
 [submodule "hylo"]
 	path = hylo
 	url = https://github.com/koliyo/hylo.git
-[submodule "BlueSocket"]
-	path = BlueSocket
-	url = https://github.com/Kitura/BlueSocket.git
 [submodule "swift-unisocket"]
 	path = swift-unisocket
 	url = https://github.com/seznam/swift-unisocket.git
-[submodule "Swifty-LLVM"]
-	path = Swifty-LLVM
-	url = https://github.com/hylo-lang/Swifty-LLVM.git
 [submodule "JSONRPC-DataChannel-UniSocket"]
 	path = JSONRPC-DataChannel-UniSocket
 	url = https://github.com/koliyo/JSONRPC-DataChannel-UniSocket.git
