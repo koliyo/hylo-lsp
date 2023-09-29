@@ -8,7 +8,7 @@ extension AST {
   private struct TranslationUnitFinder: ASTWalkObserver {
     // var outermostFunctions: [FunctionDecl.ID] = []
     let query: DocumentUri
-    private(set) var match: TranslationUnit?
+    private(set) var match: TranslationUnit.ID?
 
 
     public init(_ query: DocumentUri) {
@@ -19,9 +19,9 @@ extension AST {
       let node = ast[n]
       let site = node.site
 
-      if let t = node as? TranslationUnit {
+      if node is TranslationUnit {
         if site.file.url.absoluteString == query {
-          match = t
+          match = TranslationUnit.ID(n)
         }
         return false
       }
@@ -30,7 +30,7 @@ extension AST {
     }
   }
 
-  public func findTranslationUnit(_ url: DocumentUri) -> TranslationUnit? {
+  public func findTranslationUnit(_ url: DocumentUri) -> TranslationUnit.ID? {
     var finder = TranslationUnitFinder(url)
     for m in modules {
       walk(m, notifying: &finder)
