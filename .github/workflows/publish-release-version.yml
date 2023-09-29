@@ -39,7 +39,7 @@ jobs:
         path: vscode-extension-artifacts
 
     - name: Display structure of downloaded files
-      run: ls -R vscode-extension-artifacts
+      run: ls -R
       working-directory: vscode-extension-artifacts
 
     - name: Release
@@ -48,4 +48,4 @@ jobs:
         files: |
           hylo-vscode-extension/CHANGELOG.md
           hylo-vscode-extension/LICENSE
-          vscode-extension-artifacts/*.vsix
+          vscode-extension-artifacts/hylo-vscode-extension/*.vsix
