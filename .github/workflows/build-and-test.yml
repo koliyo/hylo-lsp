@@ -147,12 +147,16 @@ jobs:
     #         (echo "error: generated tests failed to run; see
     #         https://github.com/apple/swift-package-manager/issues/6595" && false) )
 
+    - uses: actions/setup-node@v3
+      with:
+        node-version: 20
+
     - name: Package VSCode extension (${{ matrix.configuration }})
       run: |
         # BUILD_DIR=$(swift build -c ${{ matrix.configuration }} --show-bin-path)
         # mkdir -p hylo-lsp-vs-code/bin/mac/arm64
         # cp -fv $BUILD_DIR/hylo-lsp-server hylo-lsp-vs-code/bin/mac/arm64
-        # cd hylo-lsp-vs-code
+        cd hylo-vscode-extension
         npm install
         npm run vscode:all
 
