@@ -4,7 +4,7 @@ import LanguageServerProtocol
 import JSONRPC
 import UniSocket
 import JSONRPC_DataChannel_UniSocket
-import JSONRPC_DataChannel_StdioPipe
+// import JSONRPC_DataChannel_StdioPipe
 import ArgumentParser
 import hylo_lsp
 import Logging
