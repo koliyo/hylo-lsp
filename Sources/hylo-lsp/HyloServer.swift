@@ -491,6 +491,8 @@ public struct HyloRequestHandler : RequestHandler {
       return u.name.value
     case let u as TypeAliasType:
       return u.name.value
+    // case let u as ConformanceLensType:
+    //   return u.name.value
     case let u as AssociatedTypeType:
       return u.name.value
     case let u as GenericTypeParameterType:
@@ -500,7 +502,8 @@ public struct HyloRequestHandler : RequestHandler {
     case let u as TraitType:
       return u.name.value
     default:
-      fatalError("not implemented")
+      logger.error("Unexpected type: \(t.base)")
+      return "unknown"
     }
   }
 
@@ -637,6 +640,7 @@ public struct HyloRequestHandler : RequestHandler {
   }
 
   func getDocument(_ textDocument: TextDocumentIdentifier) -> Document? {
+    logger.warning("getDocument: \(textDocument.uri)")
     return state.documents[getDocumentUri(textDocument)]
   }
 
