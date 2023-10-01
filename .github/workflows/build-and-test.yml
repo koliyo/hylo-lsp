@@ -20,6 +20,12 @@ name: Build and test
 
 on:
   workflow_call:
+    inputs:
+      build-type:
+        description: 'The build configuration type'
+        default: 'debug'
+        required: false
+        type: string
   push:
     # tags: ["v*.*.*"]
     branches: [ main ]
@@ -57,7 +63,7 @@ jobs:
   #         hylo/Library/Hylo
 
   # build-devcontainer-linux:
-  #   name: "Build Hylo LSP: ${{ matrix.host.os }}/${{ matrix.configuration }}"
+  #   name: "Build and test: ${{ matrix.host.os }}/${{ inputs.build-type }}"
   #   strategy:
   #     fail-fast: false
   #     matrix:
@@ -88,8 +94,8 @@ jobs:
   #         swift package resolve
   #         .build/checkouts/Swifty-LLVM/Tools/make-pkgconfig.sh llvm.pc
   #         export PKG_CONFIG_PATH=$PWD
-  #         swift build -c ${{ matrix.configuration }}  ${{ matrix.host.build-options }}
-  #         swift test -c ${{ matrix.configuration }} ${{ matrix.host.test-options }} |
+  #         swift build -c ${{ inputs.build-type }}  ${{ matrix.host.build-options }}
+  #         swift test -c ${{ inputs.build-type }} ${{ matrix.host.test-options }} |
   #           tee testoutput.txt && (
   #             (grep -q "[.']EndToEndTests[/. ]test_" testoutput.txt && grep -q "[.']HyloTests[/. ]test_" testoutput.txt) ||
   #             (echo "error: generated tests failed to run; see
@@ -100,10 +106,10 @@ jobs:
   #     with:
   #       SORT_ORDER: +cov
   #       MINIMUM_COVERAGE: 84
-  #       CODECOV_JSON: .build/${{ matrix.configuration }}/codecov/*.json
+  #       CODECOV_JSON: .build/${{ inputs.build-type }}/codecov/*.json
 
   build-native-macos:
-    name: "Build Hylo LSP: ${{ matrix.host.os }}/${{ matrix.configuration }}"
+    name: "Build and test: ${{ matrix.host.os }}/${{ inputs.build-type }}"
     strategy:
       fail-fast: false
       matrix:
@@ -118,7 +124,7 @@ jobs:
         swift: [
           { version: "5.9" }
         ]
-        configuration: [ "debug" ]
+        # configuration: [ ${{ inputs.build-type }} ]
         # configuration: [ "debug", "release" ]
 
     runs-on: ${{ matrix.host.os }}
@@ -150,25 +156,25 @@ jobs:
         .build/checkouts/Swifty-LLVM/Tools/make-pkgconfig.sh llvm.pc
         cat llvm.pc
 
-    - name: Build (${{ matrix.configuration }})
+    - name: Build (${{ inputs.build-type }})
       id: build
       run: |
         set -eo pipefail
         export PKG_CONFIG_PATH=$PWD/hylo
-        swift build -c ${{ matrix.configuration }} ${{ matrix.host.build-options }}
-        BUILD_DIR=$(swift build -c ${{ matrix.configuration }} --show-bin-path)
+        swift build -c ${{ inputs.build-type }} ${{ matrix.host.build-options }}
+        BUILD_DIR=$(swift build -c ${{ inputs.build-type }} --show-bin-path)
         echo "BUILD_DIR=$BUILD_DIR" >> $GITHUB_ENV
-    # - name: Test (${{ matrix.configuration }})
+    # - name: Test (${{ inputs.build-type }})
     #   run: |
     #     set -eo pipefail
     #     export PKG_CONFIG_PATH=$PWD/hylo
-    #     swift test -c ${{ matrix.configuration }} ${{ matrix.host.test-options }} |
+    #     swift test -c ${{ inputs.build-type }} ${{ matrix.host.test-options }} |
     #       tee testoutput.txt && (
     #         (grep -q "[.']EndToEndTests[/. ]test_" testoutput.txt && grep -q "[.']HyloTests[/. ]test_" testoutput.txt) ||
     #         (echo "error: generated tests failed to run; see
     #         https://github.com/apple/swift-package-manager/issues/6595" && false) )
 
-    - name: Upload Hylo LSP artifacts (${{ matrix.configuration }})
+    - name: Upload Hylo LSP artifacts (${{ inputs.build-type }})
       uses: actions/upload-artifact@v3
       with:
         name: hylo-lsp-artifacts-mac
@@ -177,7 +183,7 @@ jobs:
           ${{ env.BUILD_DIR }}/hylo-lsp-server
 
   # build-native-windows:
-  #   name: "Build Hylo LSP: windows-latest/release"
+  #   name: "Build and test: windows-latest/release"
   #   strategy:
   #     fail-fast: false
   #   runs-on: windows-latest

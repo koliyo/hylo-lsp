@@ -7,6 +7,8 @@ on:
 jobs:
   build:
     uses: ./.github/workflows/build-and-test.yml
+    with:
+      build-type: release
   publish-release:
     needs: [build]
     runs-on: ubuntu-latest
