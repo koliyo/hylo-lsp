@@ -66,11 +66,12 @@ public struct HyloNotificationHandler : NotificationHandler {
 
 
   public func textDocumentDidOpen(_ params: TextDocumentDidOpenParams) async {
-    _ = await state.documentProvider.preloadDocument(params.textDocument)
+    // _ = await state.documentProvider.preloadDocument(params.textDocument)
   }
 
   public func textDocumentDidChange(_ params: TextDocumentDidChangeParams) async {
-    _ = await state.documentProvider.preloadDocument(params.textDocument)
+    // _ = await state.documentProvider.preloadDocument(params.textDocument)
+    // TODO: Handle changes from input (not stored on disk)
   }
 
   public func textDocumentDidClose(_ params: TextDocumentDidCloseParams) async {

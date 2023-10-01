@@ -137,10 +137,10 @@ actor DocumentProvider {
     return resolveDocumentUrl(uri).absoluteString
   }
 
-  public func preloadDocument(_ textDocument: TextDocumentProtocol) -> DocumentBuildRequest {
-    let uri = DocumentProvider.resolveDocumentUri(textDocument.uri)
-    return preloadDocument(uri)
-  }
+  // public func preloadDocument(_ textDocument: TextDocumentProtocol) -> DocumentBuildRequest {
+  //   let uri = DocumentProvider.resolveDocumentUri(textDocument.uri)
+  //   return preloadDocument(uri)
+  // }
 
   private func preloadDocument(_ uri: DocumentUri) -> DocumentBuildRequest {
     let document = requestDocument(uri)
