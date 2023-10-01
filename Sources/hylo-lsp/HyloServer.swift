@@ -18,95 +18,15 @@ public class LspState {
   // var ast: AST
   let lsp: JSONRPCServer
   // var program: TypedProgram?
-  var documents: [DocumentUri:Document]
-  var stdlibAST: AST?
-  var stdlibProgram: TypedProgram?
+  var documentProvider: DocumentProvider
   // var uri: DocumentUri?
 
   public init(lsp: JSONRPCServer) {
     // self.ast = ast
     self.lsp = lsp
-    self.documents = [:]
-
-    if let path = ProcessInfo.processInfo.environment["HYLO_STDLIB_PATH"] {
-      logger.info("Hylo stdlib filepath from HYLO_STDLIB_PATH: \(path)")
-      defaultStdlibFilepath = URL(fileURLWithPath: path)
-    }
-    else {
-      defaultStdlibFilepath = HyloModule.standardLibrary
-    }
+    self.documentProvider = DocumentProvider()
   }
-
-  let defaultStdlibFilepath: URL
-
-  public func isStdlibDocument(_ uri: DocumentUri) -> Bool {
-    let (_, isStdlibDocument) = getStdlibPath(uri)
-    return isStdlibDocument
-  }
-
-  func getStdlibPath(_ uri: DocumentUri) -> (stdlibPath: URL, isStdlibDocument: Bool) {
-    guard let url = URL(string: uri) else {
-      logger.error("invalid document uri: \(uri)")
-      return (defaultStdlibFilepath, false)
-    }
-
-    var it = url.deletingLastPathComponent()
-
-    // Check if current document is inside a stdlib source directory
-    while it.path != "/" {
-      let voidPath = NSString.path(withComponents: [it.path, "Core", "Void.hylo"])
-      let fm = FileManager.default
-      var isDirectory: ObjCBool = false
-      if fm.fileExists(atPath: voidPath, isDirectory: &isDirectory) && !isDirectory.boolValue {
-        // let relUrl = URL(string: url.absoluteString, relativeTo: it)!
-        // logger.info("it: \(it), relUrl: \(relUrl.relativePath), path: \(relUrl.path)")
-        // uri = state.stdlibFilepath.appending(component: relUrl.relativePath).absoluteString
-        return (it, true)
-      }
-
-      it = it.deletingLastPathComponent()
-    }
-
-    return (defaultStdlibFilepath, false)
-  }
-
-
-
-  public func buildProgram(_ doc: DocumentUri) {
-    let (stdlibPath, isStdlibDocument) = getStdlibPath(doc)
-
-    let inputs: [URL] = if !isStdlibDocument { [URL.init(string: doc)!] } else { [] }
-
-    let task = Task {
-      return try _buildProgram(stdlibPath: stdlibPath, inputs: inputs)
-    }
-
-    logger.debug("Register opened document: \(doc)")
-    documents[doc] = Document(uri: doc, task: task)
-  }
-
-  public func _buildProgram(stdlibPath: URL, inputs: [URL]) throws -> (AST, TypedProgram) {
-    // let inputs = files.map { URL.init(fileURLWithPath: $0)}
-    let importBuiltinModule = false
-    let compileSequentially = false
-
-    var diagnostics = DiagnosticSet()
-    logger.debug("buildProgram: \(inputs)")
-
-    var ast = try AST(libraryRoot: stdlibPath)
-    _ = try ast.makeModule(HyloNotificationHandler.productName, sourceCode: sourceFiles(in: inputs),
-    builtinModuleAccess: importBuiltinModule, diagnostics: &diagnostics)
-
-    let p = try TypedProgram(
-    annotating: ScopedProgram(ast), inParallel: !compileSequentially,
-    reportingDiagnosticsTo: &diagnostics,
-    tracingInferenceIf: nil)
-    logger.debug("program is built")
-    return (ast, p)
-  }
-
 }
-
 
 
 public struct HyloNotificationHandler : NotificationHandler {
@@ -145,26 +65,12 @@ public struct HyloNotificationHandler : NotificationHandler {
   }
 
 
-  func buildDocument(_ uri: DocumentUri) async {
-    state.buildProgram(uri)
-    // // Check document is part of stdlib
-    // var uri = uri
-    // if isStdlibPath(uri) {
-    //   logger.debug("Document is stdlib member: \(uri)")
-    //   state.documents[uri] = Document(uri: uri, ast: state.stdlibAST!, program: state.stdlibProgram!)
-    //   return
-    // }
-    // else {
-    //   state.buildProgram(uri)
-    // }
-  }
-
   public func textDocumentDidOpen(_ params: TextDocumentDidOpenParams) async {
-    await buildDocument(params.textDocument.uri)
+    _ = await state.documentProvider.preloadDocument(params.textDocument)
   }
 
   public func textDocumentDidChange(_ params: TextDocumentDidChangeParams) async {
-    await buildDocument(params.textDocument.uri)
+    _ = await state.documentProvider.preloadDocument(params.textDocument)
   }
 
   public func textDocumentDidClose(_ params: TextDocumentDidCloseParams) async {
@@ -176,7 +82,6 @@ public struct HyloNotificationHandler : NotificationHandler {
   }
 
   public func textDocumentDidSave(_ params: TextDocumentDidSaveParams) async {
-    await buildDocument(params.textDocument.uri)
   }
 
   public func protocolCancelRequest(_ params: CancelParams) async {
@@ -261,29 +166,12 @@ public struct HyloRequestHandler : RequestHandler {
 
   public func initialize(_ params: InitializeParams) async -> Result<InitializationResponse, AnyJSONRPCResponseError> {
 
-    do {
-      // let ast = try state.buildStdlibAST()
-      let ast = try AST(libraryRoot: state.defaultStdlibFilepath)
-
-      var diagnostics = DiagnosticSet()
-      state.stdlibAST = ast
-      state.stdlibProgram = try TypedProgram(
-      annotating: ScopedProgram(ast), inParallel: true,
-      reportingDiagnosticsTo: &diagnostics,
-      tracingInferenceIf: nil)
-      logger.debug("built stdlib program")
-    }
-    catch {
-        return .failure(JSONRPCResponseError(code: ErrorCodes.ServerNotInitialized, message: "could not build stdlib: \(error)"))
-    }
-
-
     // let fm = FileManager.default
 
     if let rootUri = params.rootUri {
-      guard let path = URL(string: rootUri) else {
-        return .failure(JSONRPCResponseError(code: ErrorCodes.ServerNotInitialized, message: "invalid rootUri uri format"))
-      }
+      // guard let path = URL(string: rootUri) else {
+      //   return .failure(JSONRPCResponseError(code: ErrorCodes.ServerNotInitialized, message: "invalid rootUri uri format"))
+      // }
 
       // let filepath = path.absoluteURL.path() // URL path to filesystem path
       // logger.debug("filepath: \(filepath)")
@@ -330,16 +218,21 @@ public struct HyloRequestHandler : RequestHandler {
     return .optionC([location])
   }
 
-  public func definition(_ params: TextDocumentPositionParams, _ program: TypedProgram, _ ast: AST) async -> Result<DefinitionResponse, AnyJSONRPCResponseError> {
-
-    let url = getDocumentUrl(params.textDocument)
+  func makeSourcePosition(url: URL, position: Position) -> SourcePosition? {
     guard let f = try? SourceFile(contentsOf: url) else {
-      return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Invalid document uri: \(url)"))
+      return nil
     }
 
-    let pos = params.position
+    return SourcePosition(line: position.line+1, column: position.character+1, in: f)
+  }
 
-    let p = SourcePosition(line: pos.line+1, column: pos.character+1, in: f)
+  public func definition(_ params: TextDocumentPositionParams, _ doc: Document) async -> Result<DefinitionResponse, AnyJSONRPCResponseError> {
+    let url = DocumentProvider.resolveDocumentUrl(params.textDocument.uri)
+    guard let p = makeSourcePosition(url: url, position: params.position) else {
+      return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Invalid document uri: \(params.textDocument.uri)"))
+    }
+
+    let (ast, program) = (doc.ast, doc.program)
     logger.debug("Look for symbol definition at position: \(p)")
 
     guard let id = ast.findNode(p) else {
@@ -445,8 +338,8 @@ public struct HyloRequestHandler : RequestHandler {
   }
 
   public func definition(_ params: TextDocumentPositionParams) async -> Result<DefinitionResponse, AnyJSONRPCResponseError> {
-    await withProgram(params.textDocument) { (program, ast) in
-      await definition(params, program, ast)
+    await withProgram(params.textDocument) { doc in
+      await definition(params, doc)
     }
   }
 
@@ -507,7 +400,8 @@ public struct HyloRequestHandler : RequestHandler {
     }
   }
 
-  public func documentSymbol(_ params: DocumentSymbolParams, _ program: TypedProgram, _ ast: AST) async -> Result<DocumentSymbolResponse, AnyJSONRPCResponseError> {
+  public func documentSymbol(_ params: DocumentSymbolParams, _ doc: Document) async -> Result<DocumentSymbolResponse, AnyJSONRPCResponseError> {
+    let (ast, program) = (doc.ast, doc.program)
     let symbols = ast.listDocumentSymbols(params.textDocument.uri, program)
     if symbols.isEmpty {
       return .success(nil)
@@ -617,73 +511,29 @@ public struct HyloRequestHandler : RequestHandler {
   }
 
   public func documentSymbol(_ params: DocumentSymbolParams) async -> Result<DocumentSymbolResponse, AnyJSONRPCResponseError> {
-    await withProgram(params.textDocument) { (program, ast) in
-      await documentSymbol(params, program, ast)
+    await withProgram(params.textDocument) { doc in
+      await documentSymbol(params, doc)
     }
-  }
-
-  func getDocumentUrl(_ textDocument: TextDocumentIdentifier) -> URL {
-
-    // Check if fully qualified url
-    if let url = URL(string: textDocument.uri) {
-      if url.scheme != nil {
-        return url
-      }
-    }
-
-    let s = textDocument.uri as NSString
-
-    // Check if absoult path
-    if s.isAbsolutePath {
-      return URL(fileURLWithPath: textDocument.uri)
-    }
-    else {
-      // TODO: Relative path is not generally supported, potenitially using rootUri, or single workspace entry
-      let fm = FileManager.default
-      let p = NSString.path(withComponents: [fm.currentDirectoryPath, textDocument.uri])
-      return URL(fileURLWithPath: p)
-    }
-  }
-
-  func getDocumentUri(_ textDocument: TextDocumentIdentifier) -> DocumentUri {
-    return getDocumentUrl(textDocument).absoluteString
-  }
-
-  func getDocument(_ textDocument: TextDocumentIdentifier) -> Document? {
-    return state.documents[getDocumentUri(textDocument)]
   }
 
   public func diagnostics(_ params: DocumentDiagnosticParams) async -> Result<DocumentDiagnosticReport, AnyJSONRPCResponseError> {
-    guard let d = getDocument(params.textDocument) else {
-      return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Expected an opened document: \(params.textDocument.uri)"))
-    }
 
-    do {
-      _ = try await d.task.value
+
+    let docResult = await state.documentProvider.getDocument(params.textDocument)
+
+    switch docResult {
+    case let .success(doc):
       return .success(RelatedDocumentDiagnosticReport(kind: .full, items: []))
-    }
-    catch let d as DiagnosticSet {
+    case let .failure(error):
+      switch error {
+      case let .diagnostics(d):
       let dList = d.elements.map { LanguageServerProtocol.Diagnostic($0) }
       return .success(RelatedDocumentDiagnosticReport(kind: .full, items: dList))
-    }
-    catch {
-      return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Unknown build error: \(error)"))
+      case let .other(e):
+        return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Unknown build error: \(error)"))
+      }
     }
   }
-
-  // func getProgram() async -> Result<TypedProgram, BuildError> {
-  //   guard let task = state.task else {
-  //     return .failure(.message("Expected an opened document"))
-  //   }
-
-  //   do {
-  //     return .success(try await task.value)
-  //   }
-  //   catch {
-  //     return .failure(.message("Build error: \(error)"))
-  //   }
-  // }
-
 
   func trySendDiagnostics(_ diagnostics: DiagnosticSet, in uri: DocumentUri) async {
     do {
@@ -697,29 +547,29 @@ public struct HyloRequestHandler : RequestHandler {
     }
   }
 
-  func withProgram<ResponseT>(_ textDocument: TextDocumentIdentifier, fn: (TypedProgram, AST) async -> Result<ResponseT?, AnyJSONRPCResponseError>) async -> Result<ResponseT?, AnyJSONRPCResponseError> {
-    guard let d = getDocument(textDocument) else {
-      return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Expected an opened document: \(textDocument.uri)"))
-    }
+  func withProgram<ResponseT>(_ textDocument: TextDocumentIdentifier, fn: (Document) async -> Result<ResponseT?, AnyJSONRPCResponseError>) async -> Result<ResponseT?, AnyJSONRPCResponseError> {
 
-    do {
-      let (ast, program) = try await d.task.value
-      return await fn(program, ast)
-    }
-    catch let d as DiagnosticSet {
-      // await trySendDiagnostics(d)
-      logger.warning("Program build failed\n\n\(d)")
-      return .success(nil)
-    }
-    catch {
-      return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Unknown build error: \(error)"))
+    let docResult = await state.documentProvider.getDocument(textDocument)
+
+    switch docResult {
+    case let .success(doc):
+      return await fn(doc)
+    case let .failure(error):
+      switch error {
+      case let .diagnostics(d):
+        logger.warning("Program build failed\n\n\(d)")
+        return .success(nil)
+      case let .other(e):
+        return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Unknown build error: \(error)"))
+      }
     }
   }
 
   // https://code.visualstudio.com/api/language-extensions/semantic-highlight-guide
   // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_semanticTokens
   public func semanticTokensFull(_ params: SemanticTokensParams) async -> Result<SemanticTokensResponse, AnyJSONRPCResponseError> {
-    await withProgram(params.textDocument) { (program, ast) in
+    await withProgram(params.textDocument) { doc in
+      let (ast, program) = (doc.ast, doc.program)
       let tokens = ast.getSematicTokens(params.textDocument.uri, program)
       logger.debug("[\(params.textDocument.uri)] Return \(tokens.count) semantic tokens")
       return .success(SemanticTokens(tokens: tokens))
