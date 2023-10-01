@@ -6,6 +6,7 @@ on:
 
 jobs:
   build:
+    name: Build and test
     uses: ./.github/workflows/build-and-test-template.yml
     with:
       build-type: release
