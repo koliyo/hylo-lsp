@@ -20,7 +20,8 @@ let package = Package(
   ],
   dependencies: [
     .package(url: "https://github.com/apple/swift-log.git", from: "1.5.0"),
-    .package(url: "https://github.com/crspybits/swift-log-file.git", from: "0.1.0"),
+    // .package(url: "https://github.com/crspybits/swift-log-file.git", from: "0.1.0"),
+    .package(url: "https://github.com/sushichop/Puppy.git", from: "0.7.0"),
     // .package(url: "https://github.com/vapor/console-kit.git", from: "4.7.0"),
     // .package(url: "https://github.com/ChimeHQ/LanguageServerProtocol", from: "0.10.0"),
     // .package(url: "https://github.com/ChimeHQ/LanguageClient", from: "0.6.0"),
@@ -42,7 +43,8 @@ let package = Package(
       // dependencies: ["LanguageServerProtocol", "LanguageClient"],
       dependencies: [
         .product(name: "Logging", package: "swift-log"),
-        .product(name: "FileLogging", package: "swift-log-file"),
+        // .product(name: "FileLogging", package: "swift-log-file"),
+        "Puppy",
         .product(name: "LanguageServerProtocol", package: "LanguageServerProtocol"),
         .product(name: "LanguageServerProtocol-Server", package: "LanguageServerProtocol"),
         // "JSONRPC-DataChannel-UniSocket",
