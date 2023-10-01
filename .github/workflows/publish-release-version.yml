@@ -38,6 +38,7 @@ jobs:
       run: |
         set -eo pipefail
         cp -Rp hylo/Library/Hylo hylo-stdlib
+        ls -l hylo-lsp-mac/
         chmod +x hylo-lsp-mac/*
         tar -zcvf hylo-stdlib.tar.gz hylo-stdlib
         tar -zcvf hylo-lsp-mac.tar.gz hylo-lsp-mac
