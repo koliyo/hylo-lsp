@@ -60,7 +60,7 @@ struct HyloLspCommand: AsyncParsableCommand {
         setvbuf(stdout, nil, _IOLBF, 0)
         setvbuf(stderr, nil, _IOLBF, 0)
 
-        let logFileURL = URL(filePath: logFile)
+        let logFileURL = URL(fileURLWithPath: logFile)
         // let fileLogger = try FileLogging(to: logFileURL)
         let fileLogger = try FileLogger("hylo-lsp",
                     logLevel: .info,

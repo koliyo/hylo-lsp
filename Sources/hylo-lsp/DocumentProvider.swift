@@ -63,9 +63,7 @@ actor DocumentProvider {
       let fm = FileManager.default
       var isDirectory: ObjCBool = false
       if fm.fileExists(atPath: voidPath, isDirectory: &isDirectory) && !isDirectory.boolValue {
-        // let relUrl = URL(string: url.absoluteString, relativeTo: it)!
-        // logger.info("it: \(it), relUrl: \(relUrl.relativePath), path: \(relUrl.path)")
-        // uri = state.stdlibFilepath.appending(component: relUrl.relativePath).absoluteString
+        logger.info("Use local stdlib path: \(it.path)")
         return (it, true)
       }
 
