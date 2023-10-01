@@ -106,11 +106,6 @@ jobs:
 
     runs-on: ${{ matrix.host.os }}
     steps:
-    - name: Checkout
-      uses: actions/checkout@v3
-      with:
-        submodules: 'true'
-
     - name: Setup swift
       uses: swift-actions/setup-swift@v1
       with:
@@ -124,6 +119,11 @@ jobs:
         version: "15.0"
 
     - run: llvm-config --version
+
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        submodules: 'true'
 
     - name: Generate LLVM pkgconfig file
       run: |
