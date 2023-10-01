@@ -6,10 +6,12 @@ on:
 
 jobs:
   build:
+    name: Build and test
     uses: ./.github/workflows/build-and-test-template.yml
     with:
       build-type: release
   publish-release:
+    name: Publish release
     needs: [build]
     runs-on: ubuntu-latest
     steps:
@@ -19,20 +21,10 @@ jobs:
         submodules: 'true'
 
     - name: Download hylo-lsp-artifacts-mac
-      id: download-artifact
-      uses: dawidd6/action-download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
-        workflow: build-and-test.yml
         name: hylo-lsp-artifacts-mac
         path: hylo-lsp-mac
-
-    # - name: Download Hylo LSP artifact-common
-    #   id: download-artifact
-    #   uses: dawidd6/action-download-artifact@v2
-    #   with:
-    #     workflow: build-and-test.yml
-    #     name: hylo-lsp-artifacts-common
-    #     path: hylo-lsp-artifacts-common
 
     - name: Package Hylo release artifacts
       run: |
