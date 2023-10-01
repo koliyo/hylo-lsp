@@ -417,10 +417,10 @@ public struct HyloRequestHandler : RequestHandler {
         let response = LocationLink(targetUri: url.absoluteString, targetRange: LSPRange(range), targetSelectionRange: selectionRange)
         return .success(.optionC([response]))
       case let .builtinFunction(f):
-        logger.warning("builtinFunction: \(node)")
+        logger.warning("builtinFunction: \(f)")
         return .success(nil)
       case .compilerKnownType:
-        logger.warning("compilerKnownType: \(node)")
+        logger.warning("compilerKnownType: \(d!)")
         return .success(nil)
       case let .member(m, _, _):
         return .success(locationResponse(m, in: ast))
@@ -650,7 +650,6 @@ public struct HyloRequestHandler : RequestHandler {
   }
 
   func getDocument(_ textDocument: TextDocumentIdentifier) -> Document? {
-    logger.warning("getDocument: \(textDocument.uri)")
     return state.documents[getDocumentUri(textDocument)]
   }
 
@@ -755,36 +754,20 @@ public actor HyloServer {
 
   public func run() async {
     logger.debug("starting server")
-    async let t1: () = monitorRequests()
-    async let t2: () = monitorNotifications()
-    async let t3: () = monitorErrors()
-
-    // do {
-    //   // try await lsp.sendNotification(.windowShowMessage(ShowMessageParams(type: .warning, message: "foo")))
-    //   try await lsp.sendNotification(.windowLogMessage(LogMessageParams(type: .warning, message: "foo")))
-    // }
-    // catch {
-    //   logger.debug("error: \(error)")
-    // }
-
-    _ = await [t1, t2, t3]
+    await monitorEvents()
   }
 
-  func monitorErrors() async {
-    for await error in await lsp.errorSequence {
-      logger.debug("LSP stream error: \(error)")
-    }
-  }
+  func monitorEvents() async {
+    for await event in await lsp.eventSequence {
 
-  func monitorRequests() async {
-    for await request in await lsp.requestSequence {
-      await requestHandler.handleRequest(request)
-    }
-  }
-
-  func monitorNotifications() async {
-    for await notification in await lsp.notificationSequence {
-      await notificationHandler.handleNotification(notification)
+			switch event {
+			case let .notification(notification):
+        await notificationHandler.handleNotification(notification)
+			case let .request(request):
+        await requestHandler.handleRequest(request)
+			case let .error(error):
+        logger.debug("LSP stream error: \(error)")
+			}
     }
   }
 }

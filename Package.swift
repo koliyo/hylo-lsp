@@ -31,8 +31,8 @@ let package = Package(
     // .package(name: "UniSocket", path: "./swift-unisocket"),
     // .package(path: "./swift-unisocket"),
     .package(path: "./JSONRPC-DataChannel-UniSocket"),
-    .package(path: "./JSONRPC-DataChannel-Actor"),
-    .package(path: "./JSONRPC-DataChannel-StdioPipe"),
+    // .package(path: "./JSONRPC-DataChannel-Actor"),
+    // .package(path: "./JSONRPC-DataChannel-StdioPipe"),
     .package(path: "./hylo")
   ],
   targets: [
@@ -62,8 +62,8 @@ let package = Package(
       dependencies: [
         "hylo-lsp",
         "JSONRPC-DataChannel-UniSocket",
-        "JSONRPC-DataChannel-Actor",
-        "JSONRPC-DataChannel-StdioPipe",
+        // "JSONRPC-DataChannel-Actor",
+        // "JSONRPC-DataChannel-StdioPipe",
         // .product(name: "ProcessEnv", package: "ProcessEnv", condition: .when(platforms: [.macOS])),
       ],
       // dependencies: ["LanguageServerProtocol", "UniSocket"],
@@ -78,8 +78,8 @@ let package = Package(
         "hylo-lsp",
         "LanguageClient",
         "JSONRPC-DataChannel-UniSocket",
-        "JSONRPC-DataChannel-Actor",
-        "JSONRPC-DataChannel-StdioPipe",
+        // "JSONRPC-DataChannel-Actor",
+        // "JSONRPC-DataChannel-StdioPipe",
       ],
       // dependencies: ["LanguageServerProtocol", "UniSocket"],
       path: "Sources/hylo-lsp-client"
