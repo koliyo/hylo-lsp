@@ -26,26 +26,20 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v3
-      with:
-        # NOTE: Submodule to get license and changelog from hylo-vscode-extension
-        submodules: 'true'
 
-    - name: Download VSCode extension artifact
+    - name: Download Hylo LSP artifact
       id: download-artifact
       uses: dawidd6/action-download-artifact@v2
       with:
         workflow: build-and-test.yml
-        name: vscode-extension-artifacts
-        path: vscode-extension-artifacts
+        name: hylo-lsp-artifacts-mac
 
     - name: Display structure of downloaded files
       run: ls -R
-      working-directory: vscode-extension-artifacts
 
     - name: Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          hylo-vscode-extension/CHANGELOG.md
-          hylo-vscode-extension/LICENSE
-          vscode-extension-artifacts/hylo-vscode-extension/*.vsix
+          LICENSE
+          hylo-lsp-artifacts-mac/*

@@ -134,10 +134,13 @@ jobs:
         cat llvm.pc
 
     - name: Build (${{ matrix.configuration }})
+      id: build
       run: |
         set -eo pipefail
         export PKG_CONFIG_PATH=$PWD/hylo
         swift build -c ${{ matrix.configuration }} ${{ matrix.host.build-options }}
+        BUILD_DIR=$(swift build -c ${{ matrix.configuration }} --show-bin-path)
+        echo "::set-env name=BUILD_DIR::$BUILD_DIR"
 
     # - name: Test (${{ matrix.configuration }})
     #   run: |
@@ -149,32 +152,13 @@ jobs:
     #         (echo "error: generated tests failed to run; see
     #         https://github.com/apple/swift-package-manager/issues/6595" && false) )
 
-    - uses: actions/setup-node@v3
-      with:
-        node-version: 20
-
-    - name: Package VSCode extension (${{ matrix.configuration }})
-      run: |
-        set -eo pipefail
-        BUILD_DIR=$(swift build -c ${{ matrix.configuration }} --show-bin-path)
-        DIST_DIR=hylo-vscode-extension/dist
-        mkdir -p $DIST_DIR
-        rm -rf $DIST_DIR/stdlib
-        cp -Rp hylo/Library/Hylo $DIST_DIR/stdlib
-        mkdir -p $DIST_DIR/bin/mac/arm64
-        cp -fv $BUILD_DIR/hylo-lsp-server $DIST_DIR/bin/mac/arm64
-        cd hylo-vscode-extension
-        npm install
-        npm run vscode:package
-
-    - name: Upload VSCode extension artifacts (${{ matrix.configuration }})
+    - name: Upload Hylo LSP artifacts (${{ matrix.configuration }})
       uses: actions/upload-artifact@v3
       with:
-        name: vscode-extension-artifacts
+        name: hylo-lsp-artifacts-mac
         path: |
-          hylo-vscode-extension/*.vsix
-          dist
-          !dist/**/*.md
+          $BUILD_DIR/hylo-lsp-client
+          $BUILD_DIR/hylo-lsp-server
 
   # build-native-windows:
   #   name: "Native, no testing: windows-latest/release"
