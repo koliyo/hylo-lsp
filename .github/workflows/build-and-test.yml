@@ -39,24 +39,25 @@ on:
       - ".gitignore"
 
 jobs:
-  upload-common-articats:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v3
-      with:
-        submodules: 'true'
+  # upload-common-articats:
+  #   name: Upload common artifacts
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #   - name: Checkout
+  #     uses: actions/checkout@v3
+  #     with:
+  #       submodules: 'true'
 
-    - name: Upload Hylo LSP common artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: hylo-lsp-artifacts-common
-        path: |
-          LICENSE
-          hylo/Library/Hylo
+  #   - name: Upload Hylo LSP common artifacts
+  #     uses: actions/upload-artifact@v3
+  #     with:
+  #       name: hylo-lsp-artifacts-common
+  #       path: |
+  #         LICENSE
+  #         hylo/Library/Hylo
 
   # build-devcontainer-linux:
-  #   name: "Devcontainer: ${{ matrix.host.os }}/${{ matrix.configuration }}"
+  #   name: "Build Hylo LSP: ${{ matrix.host.os }}/${{ matrix.configuration }}"
   #   strategy:
   #     fail-fast: false
   #     matrix:
@@ -102,7 +103,7 @@ jobs:
   #       CODECOV_JSON: .build/${{ matrix.configuration }}/codecov/*.json
 
   build-native-macos:
-    name: "Native: ${{ matrix.host.os }}/${{ matrix.configuration }}"
+    name: "Build Hylo LSP: ${{ matrix.host.os }}/${{ matrix.configuration }}"
     strategy:
       fail-fast: false
       matrix:
@@ -122,6 +123,11 @@ jobs:
 
     runs-on: ${{ matrix.host.os }}
     steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        submodules: 'true'
+
     - name: Setup swift
       uses: swift-actions/setup-swift@v1
       with:
@@ -135,11 +141,6 @@ jobs:
         version: "15.0"
 
     - run: llvm-config --version
-
-    - name: Checkout
-      uses: actions/checkout@v3
-      with:
-        submodules: 'true'
 
     - name: Generate LLVM pkgconfig file
       run: |
@@ -176,7 +177,7 @@ jobs:
           ${{ env.BUILD_DIR }}/hylo-lsp-server
 
   # build-native-windows:
-  #   name: "Native, no testing: windows-latest/release"
+  #   name: "Build Hylo LSP: windows-latest/release"
   #   strategy:
   #     fail-fast: false
   #   runs-on: windows-latest
