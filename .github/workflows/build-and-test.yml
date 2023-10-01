@@ -39,6 +39,22 @@ on:
       - ".gitignore"
 
 jobs:
+  upload-common-articats:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        submodules: 'true'
+
+    - name: Upload Hylo LSP common artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: hylo-lsp-artifacts-common
+        path: |
+          LICENSE
+          hylo/Library/Hylo
+
   # build-devcontainer-linux:
   #   name: "Devcontainer: ${{ matrix.host.os }}/${{ matrix.configuration }}"
   #   strategy:
