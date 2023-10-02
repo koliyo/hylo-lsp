@@ -46,6 +46,15 @@
       }
     },
     {
+      "identity" : "puppy",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/sushichop/Puppy.git",
+      "state" : {
+        "revision" : "b5af02a72a5a1f92a68e6eceee19cac804067ad9",
+        "version" : "0.7.0"
+      }
+    },
+    {
       "identity" : "queue",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/mattmassicotte/Queue",
@@ -91,30 +100,12 @@
       }
     },
     {
-      "identity" : "swift-log-file",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/crspybits/swift-log-file",
-      "state" : {
-        "revision" : "aa94b38bf88c7d9cbc87ceafcdffadaffbc2bffa",
-        "version" : "0.1.0"
-      }
-    },
-    {
       "identity" : "swifty-llvm",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/hylo-lang/Swifty-LLVM",
       "state" : {
         "branch" : "main",
         "revision" : "8e00abf2dd4a0e40b403c49816c69a07e829abff"
-      }
-    },
-    {
-      "identity" : "xcglogger",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/DaveWoodCom/XCGLogger.git",
-      "state" : {
-        "revision" : "a9c4667b247928a29bdd41be2ec2c8d304215a54",
-        "version" : "7.0.1"
       }
     }
   ],

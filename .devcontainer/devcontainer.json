@@ -6,6 +6,9 @@
             "SWIFT_VERSION" : "5.9"
         }
     },
+    "mounts": [
+      "source=/home/runner/work/hylo-lsp/hylo-lsp/artifacts,target=/artifacts,type=bind,consistency=cached"
+    ],
     "features": {
         "ghcr.io/devcontainers/features/common-utils:2": {
             "installZsh": "false",

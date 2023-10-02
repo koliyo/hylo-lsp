@@ -54,6 +54,7 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-spm-
 
+    - run: mkdir -p /home/runner/work/hylo-lsp/hylo-lsp/artifacts
     - name: Build and Test
       uses: devcontainers/ci@v0.3
       with:
@@ -66,7 +67,9 @@ jobs:
           cd ..
           swift build -c ${{ inputs.build-type }} ${{ matrix.host.build-options }}
           BUILD_DIR=$(swift build -c ${{ inputs.build-type }} --show-bin-path)
+          # ls -l $BUILD_DIR
           echo "BUILD_DIR=$BUILD_DIR" >> $GITHUB_ENV
+          cp $BUILD_DIR/hylo-lsp-client $BUILD_DIR/hylo-lsp-server /artifacts/
           # swift test -c ${{ inputs.build-type }} ${{ matrix.host.test-options }} |
           #   tee testoutput.txt && (
           #     (grep -q "[.']EndToEndTests[/. ]test_" testoutput.txt && grep -q "[.']HyloTests[/. ]test_" testoutput.txt) ||
@@ -86,8 +89,8 @@ jobs:
       with:
         name: hylo-lsp-artifacts-linux
         path: |
-          ${{ env.BUILD_DIR }}/hylo-lsp-client
-          ${{ env.BUILD_DIR }}/hylo-lsp-server
+          artifacts/hylo-lsp-client
+          artifacts/hylo-lsp-server
 
   build-native-macos:
     name: "Build and test: ${{ matrix.host.os }}/${{ inputs.build-type }}"

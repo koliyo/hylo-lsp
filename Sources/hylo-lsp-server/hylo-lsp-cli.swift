@@ -8,7 +8,7 @@ import JSONRPC_DataChannel_UniSocket
 import ArgumentParser
 import hylo_lsp
 import Logging
-import FileLogging
+import Puppy
 
 extension Bool {
     var intValue: Int {
@@ -60,8 +60,13 @@ struct HyloLspCommand: AsyncParsableCommand {
         setvbuf(stdout, nil, _IOLBF, 0)
         setvbuf(stderr, nil, _IOLBF, 0)
 
-        let logFileURL = URL(filePath: logFile)
-        let fileLogger = try FileLogging(to: logFileURL)
+        let logFileURL = URL(fileURLWithPath: logFile)
+        // let fileLogger = try FileLogging(to: logFileURL)
+        let fileLogger = try FileLogger("hylo-lsp",
+                    logLevel: .info,
+                    fileURL: logFileURL)
+        var puppy = Puppy()
+        puppy.add(fileLogger)
 
         // print("Hylo LSP server args: \(CommandLine.arguments)")
 
@@ -69,16 +74,29 @@ struct HyloLspCommand: AsyncParsableCommand {
           // For stdio transport it is important that only protocol messages are sent to stdio
           // Only use file backend for logging
           // var logger = try FileLogging.logger(label: loggerLabel, localFile: logFileURL)
-          logger = Logger(label: loggerLabel) { label in FileLogHandler(label: label, fileLogger: fileLogger) }
+          // logger = Logger(label: loggerLabel) { label in FileLogHandler(label: lebel, fileLogger: fileLogger) }
+
+
+
+          // LoggingSystem.bootstrap {
+          //     var handler = PuppyLogHandler(label: $0, puppy: puppy)
+          //     // Set the logging level.
+          //     handler.logLevel = log
+          //     return handler
+          // }
+
+
           logger.logLevel = log
           await run(logger: logger, channel: DataChannel.stdioPipe())
         }
 
 
+
         // Multiplexed logging to file and console
         logger = Logger(label: loggerLabel) { label in
           MultiplexLogHandler([
-            FileLogHandler(label: label, fileLogger: fileLogger),
+            // FileLogHandler(label: label, fileLogger: fileLogger),
+            PuppyLogHandler(label: loggerLabel, puppy: puppy),
             StreamLogHandler.standardOutput(label: loggerLabel)
           ])
         }
