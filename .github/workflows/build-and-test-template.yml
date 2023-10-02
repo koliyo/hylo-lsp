@@ -135,10 +135,10 @@ jobs:
     - name: Generate LLVM pkgconfig file
       run: |
         set -eo pipefail
-        cd hylo
         swift package resolve
         .build/checkouts/Swifty-LLVM/Tools/make-pkgconfig.sh llvm.pc
         cat llvm.pc
+      working-directory: hylo
 
     - name: Build (${{ inputs.build-type }})
       id: build
@@ -166,49 +166,59 @@ jobs:
           ${{ env.BUILD_DIR }}/hylo-lsp-client
           ${{ env.BUILD_DIR }}/hylo-lsp-server
 
-  # build-native-windows:
-  #   name: "Build and test: windows-latest/release"
-  #   strategy:
-  #     fail-fast: false
-  #   runs-on: windows-latest
-  #   steps:
-  #   - name: Setup swift
-  #     uses: compnerd/gha-setup-swift@main
-  #     with:
-  #       branch: swift-5.8.1-release
-  #       tag: 5.8.1-RELEASE
+  build-native-windows:
+    name: "Build and test: windows-latest/${{ inputs.build-type }}"
+    # strategy:
+    #   fail-fast: false
+    runs-on: windows-latest
+    steps:
+    - name: Setup swift
+      uses: compnerd/gha-setup-swift@main
+      with:
+        branch: swift-5.9-release
+        tag: 5.9-RELEASE
 
-  #   - uses: actions/checkout@v3
+    - uses: actions/checkout@v3
+      with:
+        submodules: 'true'
 
-  #   - name: Swift version
-  #     run: swift --version
+    - name: Swift version
+      run: swift --version
 
-  #   - name: Set up LLVM 15.0.6
-  #     run: |
-  #       curl.exe -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}"https://github.com/c3lang/win-llvm/releases/download/llvm_15_0_6/llvm-15.0.6-windows-x86-msvc17-msvcrt.7z
-  #       7z x llvm-15.0.6-windows-x86-msvc17-msvcrt.7z -oC:\
-  #       Add-Content $env:GITHUB_PATH 'C:\llvm-15.0.6-windows-x86-msvc17-msvcrt\bin'
+    - name: Set up LLVM 15.0.6
+      run: |
+        curl.exe -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}"https://github.com/c3lang/win-llvm/releases/download/llvm_15_0_6/llvm-15.0.6-windows-x86-msvc17-msvcrt.7z
+        7z x llvm-15.0.6-windows-x86-msvc17-msvcrt.7z -oC:\
+        Add-Content $env:GITHUB_PATH 'C:\llvm-15.0.6-windows-x86-msvc17-msvcrt\bin'
+      working-directory: hylo
 
-  #   - name: Copy LLVM's include and lib to include and lib folder of MSVC
-  #     run: |
-  #       xcopy c:\llvm-15.0.6-windows-x86-msvc17-msvcrt\include\*.* c:\program" "files\microsoft" "visual" "studio\2022\enterprise\vc\tools\msvc\${{ env.VCToolsVersion }}\include\ /s /h
-  #       xcopy c:\llvm-15.0.6-windows-x86-msvc17-msvcrt\lib\*.* c:\program" "files\microsoft" "visual" "studio\2022\enterprise\vc\tools\msvc\${{ env.VCToolsVersion }}\lib\x64\ /s /h
+    - name: Copy LLVM's include and lib to include and lib folder of MSVC
+      run: |
+        xcopy c:\llvm-15.0.6-windows-x86-msvc17-msvcrt\include\*.* c:\program" "files\microsoft" "visual" "studio\2022\enterprise\vc\tools\msvc\${{ env.VCToolsVersion }}\include\ /s /h
+        xcopy c:\llvm-15.0.6-windows-x86-msvc17-msvcrt\lib\*.* c:\program" "files\microsoft" "visual" "studio\2022\enterprise\vc\tools\msvc\${{ env.VCToolsVersion }}\lib\x64\ /s /h
+      working-directory: hylo
 
-  #   - run: llvm-config --version
+    - run: llvm-config --version
 
-  #   - name: Build support library
-  #     run: clang -c ./Library/Hylo/LibC.c -o HyloLibC.lib
+    - name: Build support library
+      run: clang -c ./Library/Hylo/LibC.c -o HyloLibC.lib
+      working-directory: hylo
 
-  #   - name: Copy support library
-  #     run: xcopy HyloLibC.lib c:\program" "files\microsoft" "visual" "studio\2022\enterprise\vc\tools\msvc\${{ env.VCToolsVersion }}\lib\x64\
+    - name: Copy support library
+      run: xcopy HyloLibC.lib c:\program" "files\microsoft" "visual" "studio\2022\enterprise\vc\tools\msvc\${{ env.VCToolsVersion }}\lib\x64\
+      working-directory: hylo
 
-  #   - name: Build (Release)
-  #     id: build
-  #     continue-on-error: true
-  #     run: swift build -v -c release
+    - name: Build (Release)
+      id: build
+      # continue-on-error: true
+      run: |
+        swift build -c ${{ inputs.build-type }}
+        $BUILD_DIR = swift build -c ${{ inputs.build-type }} --show-bin-path
+        echo BUILD_DIR=$BUILD_DIR
 
-  #   - name: Retry on failure
-  #     continue-on-error: false
-  #     if: steps.build.outcome != 'success'
-  #     run: swift build -v -c release
+
+    # - name: Retry on failure
+    #   continue-on-error: false
+    #   if: steps.build.outcome != 'success'
+    #   run: swift build -v -c release
 
