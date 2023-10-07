@@ -123,7 +123,7 @@ struct HyloLspCommand: AsyncParsableCommand {
 
         logger.logLevel = log
 
-        #if os(Windows)
+        #if !os(Windows)
         if let socket = socket {
           // throw ValidationError("TODO: socket transport: \(socket)")
           let socket = try UniSocket(type: .tcp, peer: socket, timeout: (connect: 5, read: nil, write: 5))
