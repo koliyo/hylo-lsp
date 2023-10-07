@@ -67,7 +67,7 @@ jobs:
     - name: Build and Test
       uses: devcontainers/ci@v0.3
       with:
-        imageName: ghcr.io/koliyo/hylo-lsp-devcontainer:latest
+        imageName: ghcr.io/koliyo/hylo-lsp-swift-devcontainer
         runCmd: |
           set -eo pipefail
           cd hylo
