@@ -14,6 +14,7 @@ import hylo_lsp
 import Core
 import FrontEnd
 import IR
+import RegexBuilder
 
 
 // Allow loglevel as `ArgumentParser.Option`
@@ -36,8 +37,27 @@ struct Options: ParsableArguments {
     var document: String
 
     public func parseDocument() throws -> (path: String, line: UInt?, char: UInt?) {
-
-      let search1 = #/(.+)(?::(\d+)(?:\.(\d+))?)/#
+      // NOTE: Use of regex builder mainly due to windows compile error with regex literal
+      // let search1 = #/(.+)(?::(\d+)(?:\.(\d+))?)/#
+      let search1 = Regex {
+        Capture {
+          OneOrMore(.any)
+        }
+        Regex {
+          ":"
+          Capture {
+            OneOrMore(.digit)
+          }
+          Optionally {
+            Regex {
+              "."
+              Capture {
+                OneOrMore(.digit)
+              }
+            }
+          }
+        }
+      }
 
       var path = document
       var line: UInt?

@@ -523,14 +523,14 @@ public struct HyloRequestHandler : RequestHandler {
     let docResult = await state.documentProvider.getDocument(params.textDocument)
 
     switch docResult {
-    case let .success(doc):
+    case .success:
       return .success(RelatedDocumentDiagnosticReport(kind: .full, items: []))
     case let .failure(error):
       switch error {
       case let .diagnostics(d):
       let dList = d.elements.map { LanguageServerProtocol.Diagnostic($0) }
       return .success(RelatedDocumentDiagnosticReport(kind: .full, items: dList))
-      case let .other(e):
+      case .other:
         return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Unknown build error: \(error)"))
       }
     }
