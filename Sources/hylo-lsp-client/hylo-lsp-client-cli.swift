@@ -42,9 +42,10 @@ struct Options: ParsableArguments {
 
       #if os(Windows)
       // let search1 = try Regex(#"(.+)(?::(\d+)(?:\.(\d+))?)"#)
-      logger.warning("Document path parsing not supported on Windows atm, assuming normal filepath")
-      return (path, nil, nil)
+      logger.warning("Document path parsing not currently supported on Windows, assuming normal filepath")
+      return (document, nil, nil)
       #else
+      // NOTE: Can not use regex literal, it messes with the conditional windows compilation somehow...
       // let search1 = #/(.+)(?::(\d+)(?:\.(\d+))?)/#
       let search1 = Regex {
         Capture {
