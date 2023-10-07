@@ -212,10 +212,14 @@ jobs:
       id: build
       # continue-on-error: true
       run: |
-        $BUILD_DIR = swift build -c ${{ inputs.build-type }} --show-bin-path
+        BUILD_DIR=$(swift build -c ${{ inputs.build-type }} --show-bin-path)
         echo BUILD_DIR=$BUILD_DIR
-        echo BUILD_DIR=$BUILD_DIR >> $env.GITHUB_ENV
+        echo "BUILD_DIR=$BUILD_DIR" >> $GITHUB_ENV
+        # $BUILD_DIR = swift build -c ${{ inputs.build-type }} --show-bin-path
+        # echo BUILD_DIR=$BUILD_DIR
+        # echo BUILD_DIR=$BUILD_DIR >> $env.GITHUB_ENV
         swift build -c ${{ inputs.build-type }}
+      shell: bash
 
     - name: Upload Hylo LSP artifacts (${{ inputs.build-type }})
       uses: actions/upload-artifact@v3
