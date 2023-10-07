@@ -282,7 +282,7 @@ extension HyloLspCommand {
       // let docURL = URL.init(fileURLWithPath: options.document)
       let (doc, line, _) = try options.parseDocument()
       let docURL = URL.init(fileURLWithPath: doc)
-      let workspace = docURL.deletingLastPathComponent()
+      // let workspace = docURL.deletingLastPathComponent()
 
       if let pipe = options.pipe {
         print("starting client witn named pipe: \(pipe)")
