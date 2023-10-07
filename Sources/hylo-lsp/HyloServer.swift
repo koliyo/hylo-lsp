@@ -20,6 +20,7 @@ public class LspState {
   // var program: TypedProgram?
   var documentProvider: DocumentProvider
   // var uri: DocumentUri?
+  var rootUri: String?
 
   public init(lsp: JSONRPCServer) {
     // self.ast = ast
@@ -170,6 +171,7 @@ public struct HyloRequestHandler : RequestHandler {
     // let fm = FileManager.default
 
     if let rootUri = params.rootUri {
+      state.rootUri = rootUri
       // guard let path = URL(string: rootUri) else {
       //   return .failure(JSONRPCResponseError(code: ErrorCodes.ServerNotInitialized, message: "invalid rootUri uri format"))
       // }
