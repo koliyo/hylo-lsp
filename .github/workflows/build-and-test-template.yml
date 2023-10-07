@@ -221,8 +221,8 @@ jobs:
       with:
         name: hylo-lsp-artifacts-windows
         path: |
-          ${{ env.BUILD_DIR }}/hylo-lsp-client
-          ${{ env.BUILD_DIR }}/hylo-lsp-server
+          ${{ env.BUILD_DIR }}/hylo-lsp-client.exe
+          ${{ env.BUILD_DIR }}/hylo-lsp-server.exe
 
 
     # - name: Retry on failure
