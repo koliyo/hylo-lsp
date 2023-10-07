@@ -45,26 +45,26 @@ struct Options: ParsableArguments {
       logger.warning("Document path parsing not supported on Windows atm, assuming normal filepath")
       return (path, nil, nil)
       #else
-      let search1 = #/(.+)(?::(\d+)(?:\.(\d+))?)/#
-      // let search1 = Regex {
-      //   Capture {
-      //     OneOrMore(.any)
-      //   }
-      //   Regex {
-      //     ":"
-      //     Capture {
-      //       OneOrMore(.digit)
-      //     }
-      //     Optionally {
-      //       Regex {
-      //         "."
-      //         Capture {
-      //           OneOrMore(.digit)
-      //         }
-      //       }
-      //     }
-      //   }
-      // }
+      // let search1 = #/(.+)(?::(\d+)(?:\.(\d+))?)/#
+      let search1 = Regex {
+        Capture {
+          OneOrMore(.any)
+        }
+        Regex {
+          ":"
+          Capture {
+            OneOrMore(.digit)
+          }
+          Optionally {
+            Regex {
+              "."
+              Capture {
+                OneOrMore(.digit)
+              }
+            }
+          }
+        }
+      }
 
       var path = document
       var line: UInt?
