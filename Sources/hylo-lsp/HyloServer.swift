@@ -328,7 +328,7 @@ public struct HyloRequestHandler : RequestHandler {
         //   logger.debug("Function: \(f)")
         // }
       default:
-        logger.error("Unknown declaration kind: \(d!)")
+        logger.warning("Unknown declaration kind: \(d!)")
         break
       }
 
@@ -396,7 +396,7 @@ public struct HyloRequestHandler : RequestHandler {
     case let u as TraitType:
       return u.name.value
     default:
-      logger.error("Unexpected type: \(t.base)")
+      logger.warning("Unexpected type: \(t.base)")
       return "unknown"
     }
   }

@@ -53,7 +53,7 @@ struct DocumentSymbolWalker {
     case let d as TraitDecl:
       addMembers(d.members)
     default:
-      // print("Ignored declaration node: \(node)")
+      // logger.warning("Ignored declaration node: \(node)")
       break
     }
   }
