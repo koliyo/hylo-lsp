@@ -212,9 +212,17 @@ jobs:
       id: build
       # continue-on-error: true
       run: |
-        swift build -c ${{ inputs.build-type }}
         $BUILD_DIR = swift build -c ${{ inputs.build-type }} --show-bin-path
         echo BUILD_DIR=$BUILD_DIR
+        swift build -c ${{ inputs.build-type }}
+
+    - name: Upload Hylo LSP artifacts (${{ inputs.build-type }})
+      uses: actions/upload-artifact@v3
+      with:
+        name: hylo-lsp-artifacts-windows
+        path: |
+          ${{ env.BUILD_DIR }}/hylo-lsp-client
+          ${{ env.BUILD_DIR }}/hylo-lsp-server
 
 
     # - name: Retry on failure
