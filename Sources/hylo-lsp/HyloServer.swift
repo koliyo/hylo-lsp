@@ -560,7 +560,7 @@ public struct HyloRequestHandler : RequestHandler {
       case let .diagnostics(d):
         logger.warning("Program build failed\n\n\(d)")
         return .success(nil)
-      case let .other(e):
+      case .other:
         return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Unknown build error: \(error)"))
       }
     }
