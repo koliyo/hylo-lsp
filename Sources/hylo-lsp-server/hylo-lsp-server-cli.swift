@@ -125,7 +125,7 @@ struct HyloLspCommand: AsyncParsableCommand {
 
         logger.logLevel = log
 
-        #if !os(Windows)
+        #if os(Windows)
         if let socket = socket {
           // throw ValidationError("TODO: socket transport: \(socket)")
           let socket = try UniSocket(type: .tcp, peer: socket, timeout: (connect: 5, read: nil, write: 5))
@@ -138,10 +138,10 @@ struct HyloLspCommand: AsyncParsableCommand {
           await run(logger: logger, channel: DataChannel(socket: socket))
         }
         #else
-        if let socket = socket {
+        if let _ = socket {
           fatalError("socket mode not supported");
         }
-        else if let pipe = pipe {
+        else if let _ = pipe {
           fatalError("pipe mode not supported");
         }
         #endif
