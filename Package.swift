@@ -79,7 +79,14 @@ let package = Package(
         // .product(name: "ProcessEnv", package: "ProcessEnv", condition: .when(platforms: [.macOS])),
       ],
       // dependencies: ["LanguageServerProtocol", "UniSocket"],
-      path: "Sources/hylo-lsp-server"
+      path: "Sources/hylo-lsp-server",
+      swiftSettings: [
+        .unsafeFlags(["-parse-as-library"],
+          .when(platforms: [
+            .windows,
+          ])
+        )
+      ]
     ),
 
     .executableTarget(
@@ -104,7 +111,15 @@ let package = Package(
         // "JSONRPC-DataChannel-StdioPipe",
       ],
       // dependencies: ["LanguageServerProtocol", "UniSocket"],
-      path: "Sources/hylo-lsp-client"
+      path: "Sources/hylo-lsp-client",
+      swiftSettings: [
+        .unsafeFlags(["-parse-as-library"],
+          .when(platforms: [
+            .windows,
+          ])
+        )
+      ]
+
     ),
 
     .testTarget(
