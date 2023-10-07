@@ -1,4 +1,3 @@
-import Foundation
 // import ProcessEnv
 import LanguageServerProtocol
 import JSONRPC
@@ -9,6 +8,7 @@ import Logging
 import Puppy
 
 #if !os(Windows)
+import Foundation
 import UniSocket
 import JSONRPC_DataChannel_UniSocket
 #endif
@@ -73,9 +73,11 @@ struct HyloLspCommand: AsyncParsableCommand {
 
     func run() async throws {
 
+        #if !os(Windows)
         // Force line buffering
         setvbuf(stdout, nil, _IOLBF, 0)
         setvbuf(stderr, nil, _IOLBF, 0)
+        #endif
 
         let logFileURL = URL(fileURLWithPath: logFile)
         // let fileLogger = try FileLogging(to: logFileURL)
