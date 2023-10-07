@@ -54,10 +54,20 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-spm-
 
-    - run: mkdir -p /home/runner/work/hylo-lsp/hylo-lsp/artifacts
+    - name: Create artifact directory
+      run: mkdir -p /home/runner/work/hylo-lsp/hylo-lsp/artifacts
+
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Build and Test
       uses: devcontainers/ci@v0.3
       with:
+        imageName: ghcr.io/koliyo/hylo-lsp-devcontainer:latest
         runCmd: |
           set -eo pipefail
           cd hylo
