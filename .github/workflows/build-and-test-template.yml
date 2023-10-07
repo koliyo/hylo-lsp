@@ -214,7 +214,7 @@ jobs:
       run: |
         $BUILD_DIR = swift build -c ${{ inputs.build-type }} --show-bin-path
         echo BUILD_DIR=$BUILD_DIR
-        echo BUILD_DIR=$BUILD_DIR >> ${{ env.GITHUB_ENV }}
+        echo BUILD_DIR=$BUILD_DIR >> $env:GITHUB_ENV
         swift build -c ${{ inputs.build-type }}
 
     # - name: Copy artifacts
