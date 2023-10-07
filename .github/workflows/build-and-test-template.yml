@@ -68,6 +68,7 @@ jobs:
       uses: devcontainers/ci@v0.3
       with:
         imageName: ghcr.io/koliyo/hylo-lsp-swift-devcontainer
+        cacheFrom: ghcr.io/koliyo/hylo-lsp-swift-devcontainer
         runCmd: |
           set -eo pipefail
           cd hylo
