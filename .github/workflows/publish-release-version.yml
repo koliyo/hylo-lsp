@@ -24,7 +24,7 @@ jobs:
       uses: actions/download-artifact@v3
       with:
         name: hylo-lsp-artifacts-mac
-        path: hylo-lsp-mac-arm64
+        path: hylo-lsp-mac-x64
 
     - name: Download hylo-lsp-artifacts-linux
       uses: actions/download-artifact@v3
@@ -45,11 +45,11 @@ jobs:
         mkdir -p release-artifacts
         tar -zcvf release-artifacts/hylo-stdlib.tar.gz hylo-stdlib
         # Repackage with just the server binaries, for minimal size, and zip for easy unpacking in node.js
-        chmod +x hylo-lsp-mac-arm64/*
+        chmod +x hylo-lsp-mac-x64/*
         chmod +x hylo-lsp-linux-x64/*
         chmod +x hylo-lsp-windows-x64/*
-        zip release-artifacts/hylo-lsp-server-mac.zip hylo-lsp-mac-arm64/hylo-lsp-server
-        zip release-artifacts/hylo-lsp-client-mac.zip hylo-lsp-mac-arm64/hylo-lsp-client
+        zip release-artifacts/hylo-lsp-server-mac.zip hylo-lsp-mac-x64/hylo-lsp-server
+        zip release-artifacts/hylo-lsp-client-mac.zip hylo-lsp-mac-x64/hylo-lsp-client
         zip release-artifacts/hylo-lsp-server-linux.zip hylo-lsp-linux-x64/hylo-lsp-server
         zip release-artifacts/hylo-lsp-client-linux.zip hylo-lsp-linux-x64/hylo-lsp-client
         zip release-artifacts/hylo-lsp-server-windows.zip hylo-lsp-windows-x64/hylo-lsp-server.exe
