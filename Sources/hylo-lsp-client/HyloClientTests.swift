@@ -5,8 +5,6 @@ import LanguageClient
 import LanguageServerProtocol
 import LanguageServerProtocol_Client
 import JSONRPC
-import UniSocket
-import JSONRPC_DataChannel_UniSocket
 
 import Core
 import FrontEnd

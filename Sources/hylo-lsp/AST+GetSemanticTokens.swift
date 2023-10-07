@@ -69,7 +69,7 @@ struct SemanticTokensWalker {
     case let d as TraitDecl:
       addTrait(d)
     default:
-      print("Unknown node: \(node)")
+      logger.warning("Unknown node: \(node)")
     }
   }
 
@@ -250,7 +250,7 @@ struct SemanticTokensWalker {
         let d = program.referredDecl[n]
         let t = tokenType(d)
         if d != nil && t == .unknown {
-          print("Unknown decl reference: \(d!)")
+          logger.warning("Unknown decl reference: \(d!)")
         }
 
         addToken(range: e.name.site, type: t)
@@ -577,7 +577,7 @@ struct SemanticTokensWalker {
       case let s as DiscardStmt:
         addExpr(s.expr)
       default:
-        print("Unknown statement: \(s)")
+        logger.warning("Unknown statement: \(s)")
     }
   }
 

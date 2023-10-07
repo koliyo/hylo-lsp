@@ -4,8 +4,8 @@ import LanguageClient
 import LanguageServerProtocol
 import LanguageServerProtocol_Client
 import JSONRPC
-import UniSocket
-import JSONRPC_DataChannel_UniSocket
+// import UniSocket
+// import JSONRPC_DataChannel_UniSocket
 // import JSONRPC_DataChannel_Actor
 import ArgumentParser
 import Logging
@@ -15,6 +15,9 @@ import Core
 import FrontEnd
 import IR
 
+#if !os(Windows)
+import RegexBuilder
+#endif
 
 // Allow loglevel as `ArgumentParser.Option`
 extension Logger.Level : ExpressibleByArgument {
@@ -37,7 +40,32 @@ struct Options: ParsableArguments {
 
     public func parseDocument() throws -> (path: String, line: UInt?, char: UInt?) {
 
-      let search1 = #/(.+)(?::(\d+)(?:\.(\d+))?)/#
+      #if os(Windows)
+      // let search1 = try Regex(#"(.+)(?::(\d+)(?:\.(\d+))?)"#)
+      logger.warning("Document path parsing not currently supported on Windows, assuming normal filepath")
+      return (document, nil, nil)
+      #else
+      // NOTE: Can not use regex literal, it messes with the conditional windows compilation somehow...
+      // let search1 = #/(.+)(?::(\d+)(?:\.(\d+))?)/#
+      let search1 = Regex {
+        Capture {
+          OneOrMore(.any)
+        }
+        Regex {
+          ":"
+          Capture {
+            OneOrMore(.digit)
+          }
+          Optionally {
+            Regex {
+              "."
+              Capture {
+                OneOrMore(.digit)
+              }
+            }
+          }
+        }
+      }
 
       var path = document
       var line: UInt?
@@ -60,7 +88,8 @@ struct Options: ParsableArguments {
         }
       }
 
-      return (String(path), line, char)
+      return (path, line, char)
+      #endif
     }
 
     func validate() throws {
@@ -254,7 +283,7 @@ extension HyloLspCommand {
       // let docURL = URL.init(fileURLWithPath: options.document)
       let (doc, line, _) = try options.parseDocument()
       let docURL = URL.init(fileURLWithPath: doc)
-      let workspace = docURL.deletingLastPathComponent()
+      // let workspace = docURL.deletingLastPathComponent()
 
       if let pipe = options.pipe {
         print("starting client witn named pipe: \(pipe)")
