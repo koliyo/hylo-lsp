@@ -14,8 +14,10 @@ import hylo_lsp
 import Core
 import FrontEnd
 import IR
-import RegexBuilder
 
+#if !os(Windows)
+import RegexBuilder
+#endif
 
 // Allow loglevel as `ArgumentParser.Option`
 extension Logger.Level : ExpressibleByArgument {
@@ -37,27 +39,31 @@ struct Options: ParsableArguments {
     var document: String
 
     public func parseDocument() throws -> (path: String, line: UInt?, char: UInt?) {
-      // NOTE: Use of regex builder mainly due to windows compile error with regex literal
-      // let search1 = #/(.+)(?::(\d+)(?:\.(\d+))?)/#
-      let search1 = Regex {
-        Capture {
-          OneOrMore(.any)
-        }
-        Regex {
-          ":"
-          Capture {
-            OneOrMore(.digit)
-          }
-          Optionally {
-            Regex {
-              "."
-              Capture {
-                OneOrMore(.digit)
-              }
-            }
-          }
-        }
-      }
+
+      #if os(Windows)
+      // let search1 = try Regex(#"(.+)(?::(\d+)(?:\.(\d+))?)"#)
+        return (String(path), nil, nil)
+      #else
+      let search1 = #/(.+)(?::(\d+)(?:\.(\d+))?)/#
+      // let search1 = Regex {
+      //   Capture {
+      //     OneOrMore(.any)
+      //   }
+      //   Regex {
+      //     ":"
+      //     Capture {
+      //       OneOrMore(.digit)
+      //     }
+      //     Optionally {
+      //       Regex {
+      //         "."
+      //         Capture {
+      //           OneOrMore(.digit)
+      //         }
+      //       }
+      //     }
+      //   }
+      // }
 
       var path = document
       var line: UInt?
@@ -81,6 +87,7 @@ struct Options: ParsableArguments {
       }
 
       return (String(path), line, char)
+      #endif
     }
 
     func validate() throws {
