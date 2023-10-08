@@ -48,12 +48,13 @@ jobs:
         chmod +x hylo-lsp-mac-x64/*
         chmod +x hylo-lsp-linux-x64/*
         chmod +x hylo-lsp-windows-x64/*
-        zip release-artifacts/hylo-lsp-server-mac-x64.zip hylo-lsp-mac-x64/hylo-lsp-server
-        zip release-artifacts/hylo-lsp-client-mac-x64.zip hylo-lsp-mac-x64/hylo-lsp-client
-        zip release-artifacts/hylo-lsp-server-linux-x64.zip hylo-lsp-linux-x64/hylo-lsp-server
-        zip release-artifacts/hylo-lsp-client-linux-x64.zip hylo-lsp-linux-x64/hylo-lsp-client
-        zip release-artifacts/hylo-lsp-server-windows-x64.zip hylo-lsp-windows-x64/hylo-lsp-server.exe
-        zip release-artifacts/hylo-lsp-client-windows-x64.zip hylo-lsp-windows-x64/hylo-lsp-client.exe
+        echo ${{ github.ref_name }} > ref
+        zip release-artifacts/hylo-lsp-server-mac-x64.zip hylo-lsp-mac-x64/hylo-lsp-server ref
+        zip release-artifacts/hylo-lsp-client-mac-x64.zip hylo-lsp-mac-x64/hylo-lsp-client ref
+        zip release-artifacts/hylo-lsp-server-linux-x64.zip hylo-lsp-linux-x64/hylo-lsp-server ref
+        zip release-artifacts/hylo-lsp-client-linux-x64.zip hylo-lsp-linux-x64/hylo-lsp-client ref
+        zip release-artifacts/hylo-lsp-server-windows-x64.zip hylo-lsp-windows-x64/hylo-lsp-server.exe ref
+        zip release-artifacts/hylo-lsp-client-windows-x64.zip hylo-lsp-windows-x64/hylo-lsp-client.exe ref
         ls -l release-artifacts
 
     - name: Release
