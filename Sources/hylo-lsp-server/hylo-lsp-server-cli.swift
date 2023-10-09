@@ -2,13 +2,17 @@ import Foundation
 // import ProcessEnv
 import LanguageServerProtocol
 import JSONRPC
-import UniSocket
-import JSONRPC_DataChannel_UniSocket
 // import JSONRPC_DataChannel_StdioPipe
 import ArgumentParser
 import hylo_lsp
 import Logging
-import FileLogging
+import Puppy
+
+#if !os(Windows)
+import UniSocket
+import JSONRPC_DataChannel_UniSocket
+#endif
+
 
 extension Bool {
     var intValue: Int {
@@ -54,14 +58,32 @@ struct HyloLspCommand: AsyncParsableCommand {
       await server.run()
     }
 
+    func puppyLevel(_ level: Logger.Level) -> LogLevel {
+      // LogLevel(rawValue: level.rawValue)
+      switch level {
+        case .trace: .trace
+        case .debug: .debug
+        case .info: .info
+        case .notice: .notice
+        case .warning: .warning
+        case .error: .error
+        case .critical: .critical
+      }
+    }
+
     func run() async throws {
 
         // Force line buffering
         setvbuf(stdout, nil, _IOLBF, 0)
         setvbuf(stderr, nil, _IOLBF, 0)
 
-        let logFileURL = URL(filePath: logFile)
-        let fileLogger = try FileLogging(to: logFileURL)
+        let logFileURL = URL(fileURLWithPath: logFile)
+        // let fileLogger = try FileLogging(to: logFileURL)
+        let fileLogger = try FileLogger("hylo-lsp",
+                    logLevel: puppyLevel(log),
+                    fileURL: logFileURL)
+        var puppy = Puppy()
+        puppy.add(fileLogger)
 
         // print("Hylo LSP server args: \(CommandLine.arguments)")
 
@@ -69,22 +91,39 @@ struct HyloLspCommand: AsyncParsableCommand {
           // For stdio transport it is important that only protocol messages are sent to stdio
           // Only use file backend for logging
           // var logger = try FileLogging.logger(label: loggerLabel, localFile: logFileURL)
-          logger = Logger(label: loggerLabel) { label in FileLogHandler(label: label, fileLogger: fileLogger) }
+          // logger = Logger(label: loggerLabel) { label in FileLogHandler(label: lebel, fileLogger: fileLogger) }
+
+
+
+          // LoggingSystem.bootstrap {
+          //     var handler = PuppyLogHandler(label: $0, puppy: puppy)
+          //     // Set the logging level.
+          //     handler.logLevel = log
+          //     return handler
+          // }
+
+          logger = Logger(label: loggerLabel) { label in
+            PuppyLogHandler(label: label, puppy: puppy)
+          }
+
           logger.logLevel = log
           await run(logger: logger, channel: DataChannel.stdioPipe())
         }
 
 
+
         // Multiplexed logging to file and console
         logger = Logger(label: loggerLabel) { label in
           MultiplexLogHandler([
-            FileLogHandler(label: label, fileLogger: fileLogger),
-            StreamLogHandler.standardOutput(label: loggerLabel)
+            // FileLogHandler(label: label, fileLogger: fileLogger),
+            PuppyLogHandler(label: label, puppy: puppy),
+            StreamLogHandler.standardOutput(label: label)
           ])
         }
 
         logger.logLevel = log
 
+        #if !os(Windows)
         if let socket = socket {
           // throw ValidationError("TODO: socket transport: \(socket)")
           let socket = try UniSocket(type: .tcp, peer: socket, timeout: (connect: 5, read: nil, write: 5))
@@ -96,5 +135,13 @@ struct HyloLspCommand: AsyncParsableCommand {
           try socket.attach()
           await run(logger: logger, channel: DataChannel(socket: socket))
         }
+        #else
+        if let _ = socket {
+          fatalError("socket mode not supported");
+        }
+        else if let _ = pipe {
+          fatalError("pipe mode not supported");
+        }
+        #endif
     }
 }

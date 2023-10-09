@@ -28,62 +28,80 @@ on:
         type: string
 
 jobs:
-  # build-devcontainer-linux:
-  #   name: "Build and test: ${{ matrix.host.os }}/${{ inputs.build-type }}"
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       host: [
-  #         { type: linux, os: ubuntu-latest,
-  #           build-options: "-v --build-tests -Xswiftc -enable-testing",
-  #           test-options: "-v --enable-code-coverage"
-  #         }
-  #       ]
-  #       configuration: [ "debug", "release" ]
+  build-devcontainer-linux:
+    name: "Build and test: ${{ matrix.host.os }}/${{ inputs.build-type }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        host: [
+          { type: linux, os: ubuntu-latest,
+            build-options: "--build-tests -Xswiftc -enable-testing",
+            test-options: "--enable-code-coverage"
+          }
+        ]
+        # configuration: [ "debug", "release" ]
 
-  #   runs-on: ${{ matrix.host.os }}
-  #   steps:
-  #   - uses: actions/checkout@v3
+    runs-on: ${{ matrix.host.os }}
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: 'true'
 
-  #   - uses: actions/cache@v3
-  #     with:
-  #       path: .build
-  #       key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
-  #       restore-keys: |
-  #         ${{ runner.os }}-spm-
+    - uses: actions/cache@v3
+      with:
+        path: .build
+        key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+        restore-keys: |
+          ${{ runner.os }}-spm-
 
-  #   - name: Build and Test
-  #     uses: devcontainers/ci@v0.3
-  #     with:
-  #       runCmd: |
-  #         set -eo pipefail
-  #         swift package resolve
-  #         .build/checkouts/Swifty-LLVM/Tools/make-pkgconfig.sh llvm.pc
-  #         export PKG_CONFIG_PATH=$PWD
-  #         swift build -c ${{ inputs.build-type }} ${{ matrix.host.build-options }}
-  #         BUILD_DIR=$(swift build -c ${{ inputs.build-type }} --show-bin-path)
-  #         echo "BUILD_DIR=$BUILD_DIR" >> $GITHUB_ENV
-  #         # swift test -c ${{ inputs.build-type }} ${{ matrix.host.test-options }} |
-  #         #   tee testoutput.txt && (
-  #         #     (grep -q "[.']EndToEndTests[/. ]test_" testoutput.txt && grep -q "[.']HyloTests[/. ]test_" testoutput.txt) ||
-  #         #     (echo "error: generated tests failed to run; see
-  #         #     https://github.com/apple/swift-package-manager/issues/6595" && false) )
+    - name: Create artifact directory
+      run: mkdir -p /home/runner/work/hylo-lsp/hylo-lsp/artifacts
 
-  #   # - name: Check code coverage
-  #   #   uses: mattpolzin/swift-codecov-action@0.7.3
-  #   #   with:
-  #   #     SORT_ORDER: +cov
-  #   #     MINIMUM_COVERAGE: 84
-  #   #     CODECOV_JSON: .build/${{ inputs.build-type }}/codecov/*.json
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and Test
+      uses: devcontainers/ci@v0.3
+      with:
+        imageName: ghcr.io/koliyo/hylo-lsp-swift-devcontainer
+        cacheFrom: ghcr.io/koliyo/hylo-lsp-swift-devcontainer
+        runCmd: |
+          set -eo pipefail
+          cd hylo
+          swift package resolve
+          .build/checkouts/Swifty-LLVM/Tools/make-pkgconfig.sh llvm.pc
+          export PKG_CONFIG_PATH=$PWD
+          cd ..
+          swift build -c ${{ inputs.build-type }} ${{ matrix.host.build-options }}
+          BUILD_DIR=$(swift build -c ${{ inputs.build-type }} --show-bin-path)
+          # ls -l $BUILD_DIR
+          echo "BUILD_DIR=$BUILD_DIR" >> $GITHUB_ENV
+          cp $BUILD_DIR/hylo-lsp-client $BUILD_DIR/hylo-lsp-server /artifacts/
+          # swift test -c ${{ inputs.build-type }} ${{ matrix.host.test-options }} |
+          #   tee testoutput.txt && (
+          #     (grep -q "[.']EndToEndTests[/. ]test_" testoutput.txt && grep -q "[.']HyloTests[/. ]test_" testoutput.txt) ||
+          #     (echo "error: generated tests failed to run; see
+          #     https://github.com/apple/swift-package-manager/issues/6595" && false) )
+
+    # - name: Check code coverage
+    #   uses: mattpolzin/swift-codecov-action@0.7.3
+    #   with:
+    #     SORT_ORDER: +cov
+    #     MINIMUM_COVERAGE: 84
+    #     CODECOV_JSON: .build/${{ inputs.build-type }}/codecov/*.json
 
 
-  #   - name: Upload Hylo LSP artifacts (${{ inputs.build-type }})
-  #     uses: actions/upload-artifact@v3
-  #     with:
-  #       name: hylo-lsp-artifacts-linux
-  #       path: |
-  #         ${{ env.BUILD_DIR }}/hylo-lsp-client
-  #         ${{ env.BUILD_DIR }}/hylo-lsp-server
+    - name: Upload Hylo LSP artifacts (${{ inputs.build-type }})
+      uses: actions/upload-artifact@v3
+      with:
+        name: hylo-lsp-artifacts-linux
+        path: |
+          artifacts/hylo-lsp-client
+          artifacts/hylo-lsp-server
 
   build-native-macos:
     name: "Build and test: ${{ matrix.host.os }}/${{ inputs.build-type }}"
@@ -95,7 +113,7 @@ jobs:
             type: macos, os: macos-13,
             build-options: "--build-tests -Xswiftc -enable-testing",
             # No coverage support on MacOS
-            test-options: "-v"
+            test-options: ""
           }
         ]
         swift: [
@@ -128,10 +146,10 @@ jobs:
     - name: Generate LLVM pkgconfig file
       run: |
         set -eo pipefail
-        cd hylo
         swift package resolve
         .build/checkouts/Swifty-LLVM/Tools/make-pkgconfig.sh llvm.pc
         cat llvm.pc
+      working-directory: hylo
 
     - name: Build (${{ inputs.build-type }})
       id: build
@@ -159,49 +177,74 @@ jobs:
           ${{ env.BUILD_DIR }}/hylo-lsp-client
           ${{ env.BUILD_DIR }}/hylo-lsp-server
 
-  # build-native-windows:
-  #   name: "Build and test: windows-latest/release"
-  #   strategy:
-  #     fail-fast: false
-  #   runs-on: windows-latest
-  #   steps:
-  #   - name: Setup swift
-  #     uses: compnerd/gha-setup-swift@main
-  #     with:
-  #       branch: swift-5.8.1-release
-  #       tag: 5.8.1-RELEASE
+  build-native-windows:
+    name: "Build and test: windows-latest/${{ inputs.build-type }}"
+    # strategy:
+    #   fail-fast: false
+    runs-on: windows-latest
+    steps:
+    - name: Setup swift
+      uses: compnerd/gha-setup-swift@main
+      with:
+        branch: swift-5.9-release
+        tag: 5.9-RELEASE
 
-  #   - uses: actions/checkout@v3
+    - uses: actions/checkout@v3
+      with:
+        submodules: 'true'
 
-  #   - name: Swift version
-  #     run: swift --version
+    - name: Swift version
+      run: swift --version
 
-  #   - name: Set up LLVM 15.0.6
-  #     run: |
-  #       curl.exe -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}"https://github.com/c3lang/win-llvm/releases/download/llvm_15_0_6/llvm-15.0.6-windows-x86-msvc17-msvcrt.7z
-  #       7z x llvm-15.0.6-windows-x86-msvc17-msvcrt.7z -oC:\
-  #       Add-Content $env:GITHUB_PATH 'C:\llvm-15.0.6-windows-x86-msvc17-msvcrt\bin'
+    - name: Set up LLVM 15.0.6
+      run: |
+        curl.exe -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}"https://github.com/c3lang/win-llvm/releases/download/llvm_15_0_6/llvm-15.0.6-windows-x86-msvc17-msvcrt.7z
+        7z x llvm-15.0.6-windows-x86-msvc17-msvcrt.7z -oC:\
+        Add-Content $env:GITHUB_PATH 'C:\llvm-15.0.6-windows-x86-msvc17-msvcrt\bin'
+      working-directory: hylo
 
-  #   - name: Copy LLVM's include and lib to include and lib folder of MSVC
-  #     run: |
-  #       xcopy c:\llvm-15.0.6-windows-x86-msvc17-msvcrt\include\*.* c:\program" "files\microsoft" "visual" "studio\2022\enterprise\vc\tools\msvc\${{ env.VCToolsVersion }}\include\ /s /h
-  #       xcopy c:\llvm-15.0.6-windows-x86-msvc17-msvcrt\lib\*.* c:\program" "files\microsoft" "visual" "studio\2022\enterprise\vc\tools\msvc\${{ env.VCToolsVersion }}\lib\x64\ /s /h
+    - name: Copy LLVM's include and lib to include and lib folder of MSVC
+      run: |
+        xcopy c:\llvm-15.0.6-windows-x86-msvc17-msvcrt\include\*.* c:\program" "files\microsoft" "visual" "studio\2022\enterprise\vc\tools\msvc\${{ env.VCToolsVersion }}\include\ /s /h
+        xcopy c:\llvm-15.0.6-windows-x86-msvc17-msvcrt\lib\*.* c:\program" "files\microsoft" "visual" "studio\2022\enterprise\vc\tools\msvc\${{ env.VCToolsVersion }}\lib\x64\ /s /h
+      working-directory: hylo
 
-  #   - run: llvm-config --version
+    - run: llvm-config --version
 
-  #   - name: Build support library
-  #     run: clang -c ./Library/Hylo/LibC.c -o HyloLibC.lib
+    - name: Build support library
+      run: clang -c ./Library/Hylo/LibC.c -o HyloLibC.lib
+      working-directory: hylo
 
-  #   - name: Copy support library
-  #     run: xcopy HyloLibC.lib c:\program" "files\microsoft" "visual" "studio\2022\enterprise\vc\tools\msvc\${{ env.VCToolsVersion }}\lib\x64\
+    - name: Copy support library
+      run: xcopy HyloLibC.lib c:\program" "files\microsoft" "visual" "studio\2022\enterprise\vc\tools\msvc\${{ env.VCToolsVersion }}\lib\x64\
+      working-directory: hylo
 
-  #   - name: Build (Release)
-  #     id: build
-  #     continue-on-error: true
-  #     run: swift build -v -c release
+    - name: Build (Release)
+      id: build
+      # continue-on-error: true
+      run: |
+        $BUILD_DIR = swift build -c ${{ inputs.build-type }} --show-bin-path
+        echo BUILD_DIR=$BUILD_DIR
+        echo BUILD_DIR=$BUILD_DIR >> $env:GITHUB_ENV
+        swift build -c ${{ inputs.build-type }}
 
-  #   - name: Retry on failure
-  #     continue-on-error: false
-  #     if: steps.build.outcome != 'success'
-  #     run: swift build -v -c release
+    # - name: Copy artifacts
+    #   run: |
+    #     $BUILD_DIR = swift build -c ${{ inputs.build-type }} --show-bin-path
+    #     xcopy $BUILD_DIR artifacts /I
+
+    - name: Upload Hylo LSP artifacts (${{ inputs.build-type }})
+      uses: actions/upload-artifact@v3
+      with:
+        name: hylo-lsp-artifacts-windows
+        path: |
+          ${{ env.BUILD_DIR }}/hylo-lsp-client.exe
+          ${{ env.BUILD_DIR }}/hylo-lsp-server.exe
+        # artifacts/hylo-lsp-client.exe
+        # artifacts/hylo-lsp-server.exe
+
+    # - name: Retry on failure
+    #   continue-on-error: false
+    #   if: steps.build.outcome != 'success'
+    #   run: swift build -v -c release
 

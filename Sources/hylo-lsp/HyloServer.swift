@@ -20,6 +20,7 @@ public class LspState {
   // var program: TypedProgram?
   var documentProvider: DocumentProvider
   // var uri: DocumentUri?
+  var rootUri: String?
 
   public init(lsp: JSONRPCServer) {
     // self.ast = ast
@@ -170,6 +171,7 @@ public struct HyloRequestHandler : RequestHandler {
     // let fm = FileManager.default
 
     if let rootUri = params.rootUri {
+      state.rootUri = rootUri
       // guard let path = URL(string: rootUri) else {
       //   return .failure(JSONRPCResponseError(code: ErrorCodes.ServerNotInitialized, message: "invalid rootUri uri format"))
       // }
@@ -328,7 +330,7 @@ public struct HyloRequestHandler : RequestHandler {
         //   logger.debug("Function: \(f)")
         // }
       default:
-        logger.error("Unknown declaration kind: \(d!)")
+        logger.warning("Unknown declaration kind: \(d!)")
         break
       }
 
@@ -396,7 +398,7 @@ public struct HyloRequestHandler : RequestHandler {
     case let u as TraitType:
       return u.name.value
     default:
-      logger.error("Unexpected type: \(t.base)")
+      logger.warning("Unexpected type: \(t.base)")
       return "unknown"
     }
   }
@@ -523,14 +525,14 @@ public struct HyloRequestHandler : RequestHandler {
     let docResult = await state.documentProvider.getDocument(params.textDocument)
 
     switch docResult {
-    case let .success(doc):
+    case .success:
       return .success(RelatedDocumentDiagnosticReport(kind: .full, items: []))
     case let .failure(error):
       switch error {
       case let .diagnostics(d):
       let dList = d.elements.map { LanguageServerProtocol.Diagnostic($0) }
       return .success(RelatedDocumentDiagnosticReport(kind: .full, items: dList))
-      case let .other(e):
+      case .other:
         return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Unknown build error: \(error)"))
       }
     }
@@ -560,7 +562,7 @@ public struct HyloRequestHandler : RequestHandler {
       case let .diagnostics(d):
         logger.warning("Program build failed\n\n\(d)")
         return .success(nil)
-      case let .other(e):
+      case .other:
         return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Unknown build error: \(error)"))
       }
     }
