@@ -43,7 +43,8 @@ jobs:
         set -eo pipefail
         cp -Rp hylo/Library/Hylo hylo-stdlib
         mkdir -p release-artifacts
-        tar -zcvf release-artifacts/hylo-stdlib.tar.gz hylo-stdlib
+        # tar -zcvf release-artifacts/hylo-stdlib.tar.gz hylo-stdlib
+        zip -r release-artifacts/hylo-stdlib.zip hylo-stdlib ref
         # Repackage with just the server binaries, for minimal size, and zip for easy unpacking in node.js
         chmod +x hylo-lsp-mac-x64/*
         chmod +x hylo-lsp-linux-x64/*
