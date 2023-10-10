@@ -204,7 +204,7 @@ jobs:
     - name: Upload Swift artifacts
       uses: actions/upload-artifact@v3
       with:
-        name: swift-artifacts-windows
+        name: hylo-lsp-artifacts-windows
         path: |
           C:\Program Files\Swift\runtime-development\usr\bin
 
