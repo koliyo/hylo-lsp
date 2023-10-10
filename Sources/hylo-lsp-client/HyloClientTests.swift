@@ -8,7 +8,6 @@ import JSONRPC
 
 import Core
 import FrontEnd
-import IR
 import hylo_lsp
 
 public func createServer(channel: DataChannel, workspace: URL, documents: [URL]) async throws -> RestartingServer<JSONRPCServer> {

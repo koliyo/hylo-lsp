@@ -1,7 +1,6 @@
 import Foundation
 import Core
 import FrontEnd
-import IR
 import LanguageServerProtocol
 
 extension AST {
