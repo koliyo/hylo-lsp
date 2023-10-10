@@ -134,7 +134,6 @@ jobs:
       id: build
       run: |
         set -eo pipefail
-        export PKG_CONFIG_PATH=$PWD/hylo
         swift build -c ${{ inputs.build-type }} ${{ matrix.host.build-options }}
         BUILD_DIR=$(swift build -c ${{ inputs.build-type }} --show-bin-path)
         echo "BUILD_DIR=$BUILD_DIR" >> $GITHUB_ENV
