@@ -175,43 +175,44 @@ jobs:
       run: |
         swift --version
         where swift
+        "C:\Program Files\Swift"
+        Get-ChildItem -Recurse
+    # - name: Build and copy support library
+    #   run: |
+    #     clang -c ./Library/Hylo/LibC.c -o HyloLibC.lib
+    #     xcopy HyloLibC.lib c:\program" "files\microsoft" "visual" "studio\2022\enterprise\vc\tools\msvc\${{ env.VCToolsVersion }}\lib\x64\
+    #   working-directory: hylo
 
-    - name: Build and copy support library
-      run: |
-        clang -c ./Library/Hylo/LibC.c -o HyloLibC.lib
-        xcopy HyloLibC.lib c:\program" "files\microsoft" "visual" "studio\2022\enterprise\vc\tools\msvc\${{ env.VCToolsVersion }}\lib\x64\
-      working-directory: hylo
-
-    - name: Build (Release)
-      id: build
-      # continue-on-error: true
-      run: |
-        $BUILD_DIR = swift build -c ${{ inputs.build-type }} --show-bin-path
-        echo BUILD_DIR=$BUILD_DIR
-        echo BUILD_DIR=$BUILD_DIR >> $env:GITHUB_ENV
-        swift build -c ${{ inputs.build-type }}
-
-    - name: List build artifacts
-      run: Get-ChildItem -Recurse $env:BUILD_DIR
-
-    # - name: Copy artifacts
+    # - name: Build (Release)
+    #   id: build
+    #   # continue-on-error: true
     #   run: |
     #     $BUILD_DIR = swift build -c ${{ inputs.build-type }} --show-bin-path
-    #     xcopy $BUILD_DIR artifacts /I
+    #     echo BUILD_DIR=$BUILD_DIR
+    #     echo BUILD_DIR=$BUILD_DIR >> $env:GITHUB_ENV
+    #     swift build -c ${{ inputs.build-type }}
 
-    - name: Upload Hylo LSP artifacts (${{ inputs.build-type }})
-      uses: actions/upload-artifact@v3
-      with:
-        name: hylo-lsp-artifacts-windows
-        path: |
-          ${{ env.BUILD_DIR }}
-          ${{ env.BUILD_DIR }}/hylo-lsp-client.exe
-          ${{ env.BUILD_DIR }}/hylo-lsp-server.exe
-        # artifacts/hylo-lsp-client.exe
-        # artifacts/hylo-lsp-server.exe
+    # - name: List build artifacts
+    #   run: Get-ChildItem -Recurse $env:BUILD_DIR
 
-    # - name: Retry on failure
-    #   continue-on-error: false
-    #   if: steps.build.outcome != 'success'
-    #   run: swift build -v -c release
+    # # - name: Copy artifacts
+    # #   run: |
+    # #     $BUILD_DIR = swift build -c ${{ inputs.build-type }} --show-bin-path
+    # #     xcopy $BUILD_DIR artifacts /I
+
+    # - name: Upload Hylo LSP artifacts (${{ inputs.build-type }})
+    #   uses: actions/upload-artifact@v3
+    #   with:
+    #     name: hylo-lsp-artifacts-windows
+    #     path: |
+    #       ${{ env.BUILD_DIR }}
+    #       ${{ env.BUILD_DIR }}/hylo-lsp-client.exe
+    #       ${{ env.BUILD_DIR }}/hylo-lsp-server.exe
+    #     # artifacts/hylo-lsp-client.exe
+    #     # artifacts/hylo-lsp-server.exe
+
+    # # - name: Retry on failure
+    # #   continue-on-error: false
+    # #   if: steps.build.outcome != 'success'
+    # #   run: swift build -v -c release
 
