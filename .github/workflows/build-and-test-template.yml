@@ -175,8 +175,7 @@ jobs:
       run: |
         swift --version
         where swift
-        "C:\Program Files\Swift"
-        Get-ChildItem -Recurse
+        Get-ChildItem -Recurse "C:\Program Files\Swift"
     # - name: Build and copy support library
     #   run: |
     #     clang -c ./Library/Hylo/LibC.c -o HyloLibC.lib
