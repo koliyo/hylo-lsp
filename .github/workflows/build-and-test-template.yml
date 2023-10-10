@@ -64,22 +64,22 @@ jobs:
   #       username: ${{ github.repository_owner }}
   #       password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build and Test
-      uses: devcontainers/ci@v0.3
-      with:
-        imageName: ghcr.io/koliyo/hylo-lsp-swift-devcontainer
-        cacheFrom: ghcr.io/koliyo/hylo-lsp-swift-devcontainer
-        runCmd: |
-          set -eo pipefail
-          swift build -c ${{ inputs.build-type }} ${{ matrix.host.build-options }}
-          BUILD_DIR=$(swift build -c ${{ inputs.build-type }} --show-bin-path)
-          echo "BUILD_DIR=$BUILD_DIR" >> $GITHUB_ENV
-          cp $BUILD_DIR/hylo-lsp-client $BUILD_DIR/hylo-lsp-server /artifacts/
-          # swift test -c ${{ inputs.build-type }} ${{ matrix.host.test-options }} |
-          #   tee testoutput.txt && (
-          #     (grep -q "[.']EndToEndTests[/. ]test_" testoutput.txt && grep -q "[.']HyloTests[/. ]test_" testoutput.txt) ||
-          #     (echo "error: generated tests failed to run; see
-          #     https://github.com/apple/swift-package-manager/issues/6595" && false) )
+    # - name: Build and Test
+    #   uses: devcontainers/ci@v0.3
+    #   with:
+    #     imageName: ghcr.io/koliyo/hylo-lsp-swift-devcontainer
+    #     cacheFrom: ghcr.io/koliyo/hylo-lsp-swift-devcontainer
+    #     runCmd: |
+    #       set -eo pipefail
+    #       swift build -c ${{ inputs.build-type }} ${{ matrix.host.build-options }}
+    #       BUILD_DIR=$(swift build -c ${{ inputs.build-type }} --show-bin-path)
+    #       echo "BUILD_DIR=$BUILD_DIR" >> $GITHUB_ENV
+    #       cp $BUILD_DIR/hylo-lsp-client $BUILD_DIR/hylo-lsp-server /artifacts/
+    #       # swift test -c ${{ inputs.build-type }} ${{ matrix.host.test-options }} |
+    #       #   tee testoutput.txt && (
+    #       #     (grep -q "[.']EndToEndTests[/. ]test_" testoutput.txt && grep -q "[.']HyloTests[/. ]test_" testoutput.txt) ||
+    #       #     (echo "error: generated tests failed to run; see
+    #       #     https://github.com/apple/swift-package-manager/issues/6595" && false) )
 
   #   # - name: Check code coverage
   #   #   uses: mattpolzin/swift-codecov-action@0.7.3
@@ -130,13 +130,13 @@ jobs:
 
   #   - run: swift --version
 
-    - name: Build (${{ inputs.build-type }})
-      id: build
-      run: |
-        set -eo pipefail
-        swift build -c ${{ inputs.build-type }} ${{ matrix.host.build-options }}
-        BUILD_DIR=$(swift build -c ${{ inputs.build-type }} --show-bin-path)
-        echo "BUILD_DIR=$BUILD_DIR" >> $GITHUB_ENV
+    # - name: Build (${{ inputs.build-type }})
+    #   id: build
+    #   run: |
+    #     set -eo pipefail
+    #     swift build -c ${{ inputs.build-type }} ${{ matrix.host.build-options }}
+    #     BUILD_DIR=$(swift build -c ${{ inputs.build-type }} --show-bin-path)
+    #     echo "BUILD_DIR=$BUILD_DIR" >> $GITHUB_ENV
     # - name: Test (${{ inputs.build-type }})
     #   run: |
     #     set -eo pipefail
@@ -171,8 +171,10 @@ jobs:
       with:
         submodules: 'true'
 
-    - name: Swift version
-      run: swift --version
+    - name: Swift version and location
+      run: |
+        swift --version
+        where swift
 
     - name: Build and copy support library
       run: |
