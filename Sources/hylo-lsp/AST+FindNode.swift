@@ -1,6 +1,5 @@
 import Core
 import FrontEnd
-import IR
 
 extension AST {
   private struct NodeFinder: ASTWalkObserver {
