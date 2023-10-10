@@ -1,6 +1,5 @@
 import Core
 import FrontEnd
-import IR
 import Foundation
 
 extension AST {
