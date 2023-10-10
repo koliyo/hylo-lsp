@@ -193,8 +193,8 @@ jobs:
         echo BUILD_DIR=$BUILD_DIR >> $env:GITHUB_ENV
         swift build -c ${{ inputs.build-type }}
 
-    - name: List build artifacts
-      run: Get-ChildItem -Recurse $env:BUILD_DIR
+    # - name: List build artifacts
+    #   run: Get-ChildItem -Recurse $env:BUILD_DIR
 
     # - name: Copy artifacts
     #   run: |
