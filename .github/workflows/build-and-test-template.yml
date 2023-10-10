@@ -204,7 +204,7 @@ jobs:
       with:
         name: hylo-lsp-artifacts-windows
         path: |
-          "C:\Program Files\Swift\runtime-development\usr\bin"
+          C:\Program Files\Swift\runtime-development\usr\bin
         # ${{ env.BUILD_DIR }}
         # ${{ env.BUILD_DIR }}/hylo-lsp-client.exe
         # ${{ env.BUILD_DIR }}/hylo-lsp-server.exe
