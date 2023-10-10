@@ -175,8 +175,10 @@ jobs:
     - name: Swift version
       run: swift --version
 
-    - name: Copy support library
-      run: xcopy HyloLibC.lib c:\program" "files\microsoft" "visual" "studio\2022\enterprise\vc\tools\msvc\${{ env.VCToolsVersion }}\lib\x64\
+    - name: Build and copy support library
+      run: |
+        clang -c ./Library/Hylo/LibC.c -o HyloLibC.lib
+        xcopy HyloLibC.lib c:\program" "files\microsoft" "visual" "studio\2022\enterprise\vc\tools\msvc\${{ env.VCToolsVersion }}\lib\x64\
       working-directory: hylo
 
     - name: Build (Release)
