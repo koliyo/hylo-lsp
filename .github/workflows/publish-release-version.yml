@@ -54,8 +54,8 @@ jobs:
         zip release-artifacts/hylo-lsp-client-mac-x64.zip hylo-lsp-mac-x64/hylo-lsp-client ref
         zip release-artifacts/hylo-lsp-server-linux-x64.zip hylo-lsp-linux-x64/hylo-lsp-server ref
         zip release-artifacts/hylo-lsp-client-linux-x64.zip hylo-lsp-linux-x64/hylo-lsp-client ref
-        zip release-artifacts/hylo-lsp-server-windows-x64.zip hylo-lsp-windows-x64/hylo-lsp-server.exe ref
-        zip release-artifacts/hylo-lsp-client-windows-x64.zip hylo-lsp-windows-x64/hylo-lsp-client.exe ref
+        zip release-artifacts/hylo-lsp-server-windows-x64.zip hylo-lsp-windows-x64/hylo-lsp-server.exe hylo-lsp-windows-x64/*.dll ref
+        # zip release-artifacts/hylo-lsp-client-windows-x64.zip hylo-lsp-windows-x64/hylo-lsp-client.exe ref
         ls -l release-artifacts
 
     - name: Release

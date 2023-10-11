@@ -13,7 +13,6 @@ import hylo_lsp
 
 import Core
 import FrontEnd
-import IR
 
 #if !os(Windows)
 import RegexBuilder

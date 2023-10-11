@@ -71,14 +71,8 @@ jobs:
         cacheFrom: ghcr.io/koliyo/hylo-lsp-swift-devcontainer
         runCmd: |
           set -eo pipefail
-          cd hylo
-          swift package resolve
-          .build/checkouts/Swifty-LLVM/Tools/make-pkgconfig.sh llvm.pc
-          export PKG_CONFIG_PATH=$PWD
-          cd ..
           swift build -c ${{ inputs.build-type }} ${{ matrix.host.build-options }}
           BUILD_DIR=$(swift build -c ${{ inputs.build-type }} --show-bin-path)
-          # ls -l $BUILD_DIR
           echo "BUILD_DIR=$BUILD_DIR" >> $GITHUB_ENV
           cp $BUILD_DIR/hylo-lsp-client $BUILD_DIR/hylo-lsp-server /artifacts/
           # swift test -c ${{ inputs.build-type }} ${{ matrix.host.test-options }} |
@@ -136,29 +130,14 @@ jobs:
 
     - run: swift --version
 
-    - name: Setup LLVM
-      uses: KyleMayes/install-llvm-action@v1
-      with:
-        version: "15.0"
-
-    - run: llvm-config --version
-
-    - name: Generate LLVM pkgconfig file
-      run: |
-        set -eo pipefail
-        swift package resolve
-        .build/checkouts/Swifty-LLVM/Tools/make-pkgconfig.sh llvm.pc
-        cat llvm.pc
-      working-directory: hylo
-
     - name: Build (${{ inputs.build-type }})
       id: build
       run: |
         set -eo pipefail
-        export PKG_CONFIG_PATH=$PWD/hylo
         swift build -c ${{ inputs.build-type }} ${{ matrix.host.build-options }}
         BUILD_DIR=$(swift build -c ${{ inputs.build-type }} --show-bin-path)
         echo "BUILD_DIR=$BUILD_DIR" >> $GITHUB_ENV
+
     # - name: Test (${{ inputs.build-type }})
     #   run: |
     #     set -eo pipefail
@@ -193,30 +172,16 @@ jobs:
       with:
         submodules: 'true'
 
-    - name: Swift version
-      run: swift --version
+    # - name: Swift version and location
+    #   run: |
+    #     swift --version
+    #     where swift
+    #     Get-ChildItem -Recurse "C:\Program Files\Swift"
 
-    - name: Set up LLVM 15.0.6
+    - name: Build and copy support library
       run: |
-        curl.exe -L -O -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}"https://github.com/c3lang/win-llvm/releases/download/llvm_15_0_6/llvm-15.0.6-windows-x86-msvc17-msvcrt.7z
-        7z x llvm-15.0.6-windows-x86-msvc17-msvcrt.7z -oC:\
-        Add-Content $env:GITHUB_PATH 'C:\llvm-15.0.6-windows-x86-msvc17-msvcrt\bin'
-      working-directory: hylo
-
-    - name: Copy LLVM's include and lib to include and lib folder of MSVC
-      run: |
-        xcopy c:\llvm-15.0.6-windows-x86-msvc17-msvcrt\include\*.* c:\program" "files\microsoft" "visual" "studio\2022\enterprise\vc\tools\msvc\${{ env.VCToolsVersion }}\include\ /s /h
-        xcopy c:\llvm-15.0.6-windows-x86-msvc17-msvcrt\lib\*.* c:\program" "files\microsoft" "visual" "studio\2022\enterprise\vc\tools\msvc\${{ env.VCToolsVersion }}\lib\x64\ /s /h
-      working-directory: hylo
-
-    - run: llvm-config --version
-
-    - name: Build support library
-      run: clang -c ./Library/Hylo/LibC.c -o HyloLibC.lib
-      working-directory: hylo
-
-    - name: Copy support library
-      run: xcopy HyloLibC.lib c:\program" "files\microsoft" "visual" "studio\2022\enterprise\vc\tools\msvc\${{ env.VCToolsVersion }}\lib\x64\
+        clang -c ./Library/Hylo/LibC.c -o HyloLibC.lib
+        xcopy HyloLibC.lib c:\program" "files\microsoft" "visual" "studio\2022\enterprise\vc\tools\msvc\${{ env.VCToolsVersion }}\lib\x64\
       working-directory: hylo
 
     - name: Build (Release)
@@ -228,10 +193,20 @@ jobs:
         echo BUILD_DIR=$BUILD_DIR >> $env:GITHUB_ENV
         swift build -c ${{ inputs.build-type }}
 
+    # - name: List build artifacts
+    #   run: Get-ChildItem -Recurse $env:BUILD_DIR
+
     # - name: Copy artifacts
     #   run: |
     #     $BUILD_DIR = swift build -c ${{ inputs.build-type }} --show-bin-path
     #     xcopy $BUILD_DIR artifacts /I
+
+    - name: Upload Swift artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: hylo-lsp-artifacts-windows
+        path: |
+          C:\Program Files\Swift\runtime-development\usr\bin
 
     - name: Upload Hylo LSP artifacts (${{ inputs.build-type }})
       uses: actions/upload-artifact@v3
@@ -240,11 +215,9 @@ jobs:
         path: |
           ${{ env.BUILD_DIR }}/hylo-lsp-client.exe
           ${{ env.BUILD_DIR }}/hylo-lsp-server.exe
-        # artifacts/hylo-lsp-client.exe
-        # artifacts/hylo-lsp-server.exe
 
-    # - name: Retry on failure
-    #   continue-on-error: false
-    #   if: steps.build.outcome != 'success'
-    #   run: swift build -v -c release
+    # # - name: Retry on failure
+    # #   continue-on-error: false
+    # #   if: steps.build.outcome != 'success'
+    # #   run: swift build -v -c release
 
