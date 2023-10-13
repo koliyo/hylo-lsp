@@ -52,6 +52,8 @@ struct SemanticTokensWalker {
       addFunction(d)
     case let d as MethodDecl:
       addMethod(d)
+    case let d as OperatorDecl:
+      addOperator(d)
     case _ as VarDecl:
       // NOTE: VarDecl is handled by BindingDecl, which allows binding one or more variables
       break
@@ -493,6 +495,18 @@ struct SemanticTokensWalker {
     addIntroducer(d.receiverEffect)
     addExpr(d.output)
     addBody(d.body)
+  }
+
+  mutating func addOperator(_ d: OperatorDecl) {
+    addAccessModifier(d.accessModifier)
+    addIntroducer(d.introducerSite)
+    addIntroducer(d.notation)
+    addIntroducer(d.introducerSite)
+    addToken(range: d.name.site, type: TokenType.operator)
+
+    if let precedenceGroup = d.precedenceGroup {
+      addToken(range: precedenceGroup.site, type: TokenType.identifier)
+    }
   }
 
   mutating func addMethod(_ d: MethodDecl) {

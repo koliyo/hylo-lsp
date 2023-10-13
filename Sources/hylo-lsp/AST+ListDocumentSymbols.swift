@@ -45,6 +45,8 @@ struct DocumentSymbolWalker {
       return [getSymbol(d)]
     case let d as TraitDecl:
       return [getSymbol(d)]
+    case let d as OperatorDecl:
+      return [getSymbol(d)]
     case let d as FunctionDecl:
       return [getSymbol(d)]
     case let d as MethodDecl:
@@ -164,6 +166,19 @@ struct DocumentSymbolWalker {
       range: range,
       selectionRange: selectionRange,
       children: getSymbols(d.members)
+    )
+  }
+
+  func getSymbol(_ d: OperatorDecl) -> DocumentSymbol {
+    let range = LSPRange(d.site)
+    let selectionRange = LSPRange(d.name.site)
+
+    return DocumentSymbol(
+      name: d.name.value,
+      detail: nil,
+      kind: SymbolKind.operator,
+      range: range,
+      selectionRange: selectionRange
     )
   }
 
