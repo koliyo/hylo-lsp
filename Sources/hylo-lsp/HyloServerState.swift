@@ -203,9 +203,9 @@ public actor ServerState {
     let input = URL.init(string: uri)!
     let inputs: [URL] = if !isStdlibDocument { [input] } else { [] }
 
-    let cacheTask = Task {
+    let cacheTask: Task<CachedDocumentResult?, Error> = Task {
       if includeCache {
-        return try loadCachedDocumentResult(uri)
+        return loadCachedDocumentResult(uri)
       }
       else {
         return nil

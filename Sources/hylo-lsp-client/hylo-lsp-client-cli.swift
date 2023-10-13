@@ -236,8 +236,11 @@ extension HyloLspCommand {
       DocumentSymbol(name: s.name, kind: s.kind, range: s.location.range, selectionRange: s.location.range)
     }
 
-    func printSymbol(_ s: DocumentSymbol, in uri: DocumentUri) {
-      print("\(cliLink(uri: uri, range: s.range)) name: \(s.name), kind: \(s.kind), selection: \(s.selectionRange)")
+    func printSymbol(_ s: DocumentSymbol, in uri: DocumentUri, indent: String = "") {
+      print("\(cliLink(uri: uri, range: s.range))\(indent) name: \(s.name), kind: \(s.kind), selection: \(s.selectionRange)")
+      for c in s.children ?? [] {
+        printSymbol(c, in: uri, indent: indent + "  ")
+      }
     }
   }
 
