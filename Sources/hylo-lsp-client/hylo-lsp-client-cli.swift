@@ -24,6 +24,22 @@ extension Logger.Level : ExpressibleByArgument {
 
 // let pipePath = "/tmp/my.sock"
 
+struct DocumentLocation {
+  public let filepath: String
+  public let url: URL
+  public let uri: DocumentUri
+  public let line: UInt?
+  public let char: UInt?
+
+  public func position() -> Position? {
+    guard let line = line else { return nil }
+    guard let char = char else { return nil }
+    guard line > 0 && char > 0 else { return nil }
+
+    return Position(line: Int(line-1), character: Int(char-1))
+  }
+}
+
 struct Options: ParsableArguments {
     // @Flag(help: "Named pipe transport")
     // var pipe: Bool = false
@@ -37,7 +53,7 @@ struct Options: ParsableArguments {
     @Argument(help: "Hylo document filepath")
     var document: String
 
-    public func parseDocument() throws -> (path: String, line: UInt?, char: UInt?) {
+    public func parseDocument() throws -> DocumentLocation {
 
       #if os(Windows)
       // let search1 = try Regex(#"(.+)(?::(\d+)(?:\.(\d+))?)"#)
@@ -87,26 +103,30 @@ struct Options: ParsableArguments {
         }
       }
 
-      return (path, line, char)
+      // Resolve proper uri
+      let url = resolveDocumentUrl(path)
+      let uri = url.absoluteString
+
+      return DocumentLocation(filepath: path, url: url, uri: uri, line: line, char: char)
       #endif
     }
 
     func validate() throws {
-      let (path, _, _) = try parseDocument()
+      let d = try parseDocument()
 
       let fm = FileManager.default
       var isDirectory: ObjCBool = false
 
-      guard path.hasSuffix(".hylo") else {
-        throw ValidationError("document does not have .hylo suffix: \(path)")
+      guard d.filepath.hasSuffix(".hylo") else {
+        throw ValidationError("document does not have .hylo suffix: \(d.filepath)")
       }
 
-      guard fm.fileExists(atPath: path, isDirectory: &isDirectory) else {
-        throw ValidationError("document filepath does not exist: \(path)")
+      guard fm.fileExists(atPath: d.filepath, isDirectory: &isDirectory) else {
+        throw ValidationError("document filepath does not exist: \(d.filepath)")
       }
 
       guard !isDirectory.boolValue else {
-        throw ValidationError("document filepath is a directory: \(path)")
+        throw ValidationError("document filepath is a directory: \(d.filepath)")
       }
 
     }
@@ -134,13 +154,13 @@ public func cliLink(uri: String, range: LSPRange) -> String {
   "\(uri):\(range.start.line+1):\(range.start.character+1)"
 }
 
-func initServer(workspace: String? = nil, documents: [String]) async throws -> RestartingServer<
+func initServer(workspace: String? = nil, documents: [URL]) async throws -> RestartingServer<
   JSONRPCServer
 > {
   let fm = FileManager.default
   let workspace = URL.init(fileURLWithPath: workspace ?? fm.currentDirectoryPath)
 
-  let docUrls = documents.map { URL.init(fileURLWithPath: $0) }
+  // let documents = documents.map { URL.init(fileURLWithPath: $0) }
 
   let (clientChannel, serverChannel) = DataChannel.withDataActor()
 
@@ -151,7 +171,33 @@ func initServer(workspace: String? = nil, documents: [String]) async throws -> R
   }
 
   // Return the RPC server (client side)
-  return try await createServer(channel: clientChannel, workspace: workspace, documents: docUrls)
+  return try await createServer(channel: clientChannel, workspace: workspace, documents: documents)
+}
+
+func resolveDocumentUrl(_ uri: String) -> URL {
+
+  // Check if fully qualified url
+  if let url = URL(string: uri) {
+    if url.scheme != nil {
+      return url
+    }
+  }
+
+  let s = uri as NSString
+
+  // Check if absoult path
+  if s.isAbsolutePath {
+    return URL(fileURLWithPath: uri)
+  }
+  else {
+    let fm = FileManager.default
+    let p = NSString.path(withComponents: [fm.currentDirectoryPath, uri])
+    return URL(fileURLWithPath: p)
+  }
+}
+
+func resolveDocumentUri(_ uri: String) -> DocumentUri {
+  return resolveDocumentUrl(uri).absoluteString
 }
 
 extension HyloLspCommand {
@@ -159,11 +205,10 @@ extension HyloLspCommand {
     @OptionGroup var options: Options
     func run() async throws {
       logger.logLevel = options.log
-      let (doc, line, char) = try options.parseDocument()
-      let docURL = URL.init(fileURLWithPath: doc)
+      let doc = try options.parseDocument()
 
-      let server = try await initServer(documents: [doc])
-      let params = DocumentSymbolParams(textDocument: TextDocumentIdentifier(uri: docURL.absoluteString))
+      let server = try await initServer(documents: [doc.url])
+      let params = DocumentSymbolParams(textDocument: TextDocumentIdentifier(uri: doc.uri))
 
       let symbols = try await server.documentSymbol(params: params)
 
@@ -175,14 +220,14 @@ extension HyloLspCommand {
             print("No symbols")
           }
           for s in s {
-            printSymbol(s, in: doc)
+            printSymbol(s, in: doc.filepath)
           }
         case let .optionB(s):
           if s.isEmpty {
             print("No symbols")
           }
           for s in s {
-            printSymbol(documentSymbol(s), in: doc)
+            printSymbol(documentSymbol(s), in: doc.filepath)
           }
       }
     }
@@ -200,20 +245,14 @@ extension HyloLspCommand {
     @OptionGroup var options: Options
     func run() async throws {
       logger.logLevel = options.log
-      let (doc, line, char) = try options.parseDocument()
+      let doc = try options.parseDocument()
 
-      guard let line = line else {
+      guard let pos = doc.position() else {
         throw ValidationError("Invalid position")
       }
 
-      guard let char = char else {
-        throw ValidationError("Invalid position")
-      }
-
-      let pos = Position(line: Int(line-1), character: Int(char-1))
-
-      let server = try await initServer(documents: [doc])
-      let params = TextDocumentPositionParams(uri: doc, position: pos)
+      let server = try await initServer(documents: [doc.url])
+      let params = TextDocumentPositionParams(uri: doc.uri, position: pos)
 
       let definition = try await server.definition(params: params)
 
@@ -250,14 +289,13 @@ extension HyloLspCommand {
     @OptionGroup var options: Options
     func run() async throws {
       logger.logLevel = options.log
-      let (doc, line, _) = try options.parseDocument()
-      let docURL = URL.init(fileURLWithPath: doc)
-      let server = try await initServer(documents: [doc])
+      let doc = try options.parseDocument()
+      let server = try await initServer(documents: [doc.url])
 
-      let params = DocumentDiagnosticParams(textDocument: TextDocumentIdentifier(uri: docURL.absoluteString))
+      let params = DocumentDiagnosticParams(textDocument: TextDocumentIdentifier(uri: doc.uri))
       let report = try await server.diagnostics(params: params)
       for i in report.items ?? [] {
-        print("\(cliLink(uri: docURL.path, range: i.range)) \(i.severity ?? .information): \(i.message)")
+        print("\(cliLink(uri: doc.filepath, range: i.range)) \(i.severity ?? .information): \(i.message)")
         for ri in i.relatedInformation ?? [] {
           print("  \(cliLink(uri: ri.location.uri, range: ri.location.range)) \(ri.message)")
         }
@@ -280,8 +318,7 @@ extension HyloLspCommand {
       // let docURL = URL.init(fileURLWithPath:"hylo/Examples/factorial.hylo")
       // let docURL = URL.init(fileURLWithPath:"hylo/Library/Hylo/Array.hylo")
       // let docURL = URL.init(fileURLWithPath: options.document)
-      let (doc, line, _) = try options.parseDocument()
-      let docURL = URL.init(fileURLWithPath: doc)
+      let doc = try options.parseDocument()
       // let workspace = docURL.deletingLastPathComponent()
 
       if let pipe = options.pipe {
@@ -306,12 +343,12 @@ extension HyloLspCommand {
       }
       else {
 
-        let server = try await initServer(documents: [doc])
-        let params = SemanticTokensParams(textDocument: TextDocumentIdentifier(uri: docURL.absoluteString))
+        let server = try await initServer(documents: [doc.url])
+        let params = SemanticTokensParams(textDocument: TextDocumentIdentifier(uri: doc.uri))
         if let tokensData = try await server.semanticTokensFull(params: params) {
           var tokens = tokensData.decode()
 
-          if let line = line {
+          if let line = doc.line {
             tokens = tokens.filter { $0.line+1 == line }
           }
 

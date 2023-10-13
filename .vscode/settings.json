@@ -8,5 +8,6 @@
     "*.agxTask": "xml",
     "*.agxComponent": "xml",
     "__locale": "cpp"
-  }
+  },
+  "atlascode.jira.enabled": false
 }

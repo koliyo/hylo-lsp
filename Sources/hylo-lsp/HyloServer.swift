@@ -13,26 +13,11 @@ enum BuildError : Error {
   case message(String)
 }
 
-public class LspState {
-  // var ast: AST
-  let lsp: JSONRPCServer
-  // var program: TypedProgram?
-  var documentProvider: DocumentProvider
-  // var uri: DocumentUri?
-  var rootUri: String?
-
-  public init(lsp: JSONRPCServer) {
-    // self.ast = ast
-    self.lsp = lsp
-    self.documentProvider = DocumentProvider()
-  }
-}
-
 
 public struct HyloNotificationHandler : NotificationHandler {
   public let lsp: JSONRPCServer
   public let logger: Logger
-  var state: LspState
+  var state: ServerState
   // var ast: AST { state.ast }
   static let productName = "lsp-build"
 
@@ -101,8 +86,8 @@ public struct HyloNotificationHandler : NotificationHandler {
 
   }
 
-  public func workspaceDidChangeWorkspaceFolders(_ params:   DidChangeWorkspaceFoldersParams) async {
-
+  public func workspaceDidChangeWorkspaceFolders(_ params: DidChangeWorkspaceFoldersParams) async {
+    await state.workspaceDidChangeWorkspaceFolders(params)
   }
 
   public func workspaceDidChangeConfiguration(_ params: DidChangeConfigurationParams)  async {
@@ -128,75 +113,21 @@ public struct HyloRequestHandler : RequestHandler {
   public let lsp: JSONRPCServer
   public let logger: Logger
 
-  var state: LspState
+  var state: ServerState
   // var ast: AST { state.ast }
   // var program: TypedProgram? { state.program }
   // var initTask: Task<TypedProgram, Error>
 
-  private let serverInfo: ServerInfo
 
-  public init(lsp: JSONRPCServer, logger: Logger, serverInfo: ServerInfo, state: LspState) {
+  public init(lsp: JSONRPCServer, logger: Logger, state: ServerState) {
     self.lsp = lsp
     self.logger = logger
-    self.serverInfo = serverInfo
     self.state = state
   }
 
 
-  private func getServerCapabilities() -> ServerCapabilities {
-    var s = ServerCapabilities()
-    let documentSelector = DocumentFilter(pattern: "**/*.hylo")
-
-    // NOTE: Only need to register extensions
-    // The protocol defines a set of token types and modifiers but clients are allowed to extend these and announce the values they support in the corresponding client capability.
-    // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_semanticTokens
-    let tokenLedgend = SemanticTokensLegend(tokenTypes: TokenType.allCases.map { $0.description }, tokenModifiers: ["private", "public"])
-
-    s.textDocumentSync = .optionA(TextDocumentSyncOptions(openClose: false, change: TextDocumentSyncKind.full, willSave: false, willSaveWaitUntil: false, save: nil))
-    s.textDocumentSync = .optionB(TextDocumentSyncKind.full)
-    s.definitionProvider = .optionA(true)
-    // s.typeDefinitionProvider = .optionA(true)
-    s.documentSymbolProvider = .optionA(true)
-    // s.semanticTokensProvider = .optionA(SemanticTokensOptions(legend: tokenLedgend, range: .optionA(true), full: .optionA(true)))
-    s.semanticTokensProvider = .optionB(SemanticTokensRegistrationOptions(documentSelector: [documentSelector], legend: tokenLedgend, range: .optionA(false), full: .optionA(true)))
-    s.diagnosticProvider = .optionA(DiagnosticOptions(interFileDependencies: false, workspaceDiagnostics: false))
-
-    return s
-  }
-
-
   public func initialize(_ params: InitializeParams) async -> Result<InitializationResponse, AnyJSONRPCResponseError> {
-
-    // let fm = FileManager.default
-
-    if let rootUri = params.rootUri {
-      state.rootUri = rootUri
-      // guard let path = URL(string: rootUri) else {
-      //   return .failure(JSONRPCResponseError(code: ErrorCodes.ServerNotInitialized, message: "invalid rootUri uri format"))
-      // }
-
-      // let filepath = path.absoluteURL.path() // URL path to filesystem path
-      // logger.debug("filepath: \(filepath)")
-
-      // guard let items = try? fm.contentsOfDirectory(atPath: filepath) else {
-      //   return .failure(JSONRPCResponseError(code: ErrorCodes.ServerNotInitialized, message: "could not list rootUri directory: \(path)"))
-      // }
-
-      // do {
-      //   state.program = try state._buildProgram(items.map { path.appending(path: $0) })
-      // }
-      // catch {
-      //   return .failure(JSONRPCResponseError(code: ErrorCodes.ServerNotInitialized, message: "could not build rootUri directory: \(path), error: \(error)"))
-      // }
-
-      return .success(InitializationResponse(capabilities: getServerCapabilities(), serverInfo: serverInfo))
-    }
-    else {
-      // return .failure(JSONRPCResponseError(code: ErrorCodes.ServerNotInitialized, message: "expected rootUri parameter"))
-
-      logger.debug("init without rootUri")
-      return .success(InitializationResponse(capabilities: getServerCapabilities(), serverInfo: serverInfo))
-    }
+    return await state.initialize(params)
   }
 
   public func shutdown() async {
@@ -228,8 +159,12 @@ public struct HyloRequestHandler : RequestHandler {
     return SourcePosition(line: position.line+1, column: position.character+1, in: f)
   }
 
-  public func definition(_ params: TextDocumentPositionParams, _ doc: Document) async -> Result<DefinitionResponse, AnyJSONRPCResponseError> {
-    let url = DocumentProvider.resolveDocumentUrl(params.textDocument.uri)
+  public func definition(_ params: TextDocumentPositionParams, _ doc: AnalyzedDocument) async -> Result<DefinitionResponse, AnyJSONRPCResponseError> {
+
+    guard let url = ServerState.validateDocumentUrl(params.textDocument.uri) else {
+      return .failure(JSONRPCResponseError(code: ErrorCodes.InvalidParams, message: "Invalid document uri: \(params.textDocument.uri)"))
+    }
+
     guard let p = makeSourcePosition(url: url, position: params.position) else {
       return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Invalid document uri: \(params.textDocument.uri)"))
     }
@@ -340,7 +275,7 @@ public struct HyloRequestHandler : RequestHandler {
   }
 
   public func definition(_ params: TextDocumentPositionParams) async -> Result<DefinitionResponse, AnyJSONRPCResponseError> {
-    await withProgram(params.textDocument) { doc in
+    await withAnalyzedDocument(params.textDocument) { doc in
       await definition(params, doc)
     }
   }
@@ -402,7 +337,7 @@ public struct HyloRequestHandler : RequestHandler {
     }
   }
 
-  public func documentSymbol(_ params: DocumentSymbolParams, _ doc: Document) async -> Result<DocumentSymbolResponse, AnyJSONRPCResponseError> {
+  public func documentSymbol(_ params: DocumentSymbolParams, _ doc: AnalyzedDocument) async -> Result<DocumentSymbolResponse, AnyJSONRPCResponseError> {
     let (ast, program) = (doc.ast, doc.program)
     let symbols = ast.listDocumentSymbols(params.textDocument.uri, program)
     if symbols.isEmpty {
@@ -467,16 +402,25 @@ public struct HyloRequestHandler : RequestHandler {
     }
 
     // Validate ranges
-    lspSymbols = lspSymbols.filter { s in
-      if s.selectionRange.start < s.range.start || s.selectionRange.end > s.range.end {
-        logger.error("Invalid symbol ranges, selectionRange is outside range: \(s)")
-        return false
-      }
+    lspSymbols = lspSymbols.filter(validateRange)
 
-      return true
+    let result: DocumentSymbolResponse = .optionA(lspSymbols)
+
+    // Write to result cache
+    await state.writeCachedDocumentResult(doc) { (cachedDocument: inout CachedDocumentResult) in
+      cachedDocument.symbols = result
     }
 
-    return .success(.optionA(lspSymbols))
+    return .success(result)
+  }
+
+  func validateRange(_ s: DocumentSymbol) -> Bool {
+    if s.selectionRange.start < s.range.start || s.selectionRange.end > s.range.end {
+      logger.error("Invalid symbol ranges, selectionRange is outside range: \(s)")
+      return false
+    }
+
+    return true
   }
 
 
@@ -513,15 +457,35 @@ public struct HyloRequestHandler : RequestHandler {
   }
 
   public func documentSymbol(_ params: DocumentSymbolParams) async -> Result<DocumentSymbolResponse, AnyJSONRPCResponseError> {
-    await withProgram(params.textDocument) { doc in
-      await documentSymbol(params, doc)
+
+    await withDocumentContext(params.textDocument) { context in
+
+      // Check if document has been built, otherwise look for cached result
+      if let analyzedDocument = await context.pollAnalyzedDocument() {
+        return await withAnalyzedDocument(analyzedDocument) { doc in
+          await documentSymbol(params, doc)
+        }
+      }
+
+      // Check if cached results where loaded successfully
+      if case let .success(cachedResult) = await context.getCachedDocumentResult() {
+        if let cachedSymbols = cachedResult?.symbols {
+          logger.debug("Use cached document symbols")
+          return .success(cachedSymbols)
+        }
+      }
+
+      // Otherwise wait for compiler analysis
+      return await withAnalyzedDocument(await context.getAnalyzedDocument()) { doc in
+        await documentSymbol(params, doc)
+      }
     }
   }
 
   public func diagnostics(_ params: DocumentDiagnosticParams) async -> Result<DocumentDiagnosticReport, AnyJSONRPCResponseError> {
 
 
-    let docResult = await state.documentProvider.getDocument(params.textDocument)
+    let docResult = await state.getAnalyzedDocument(params.textDocument)
 
     switch docResult {
     case .success:
@@ -549,9 +513,24 @@ public struct HyloRequestHandler : RequestHandler {
     }
   }
 
-  func withProgram<ResponseT>(_ textDocument: TextDocumentIdentifier, fn: (Document) async -> Result<ResponseT?, AnyJSONRPCResponseError>) async -> Result<ResponseT?, AnyJSONRPCResponseError> {
 
-    let docResult = await state.documentProvider.getDocument(textDocument)
+  func withAnalyzedDocument<ResponseT>(_ docResult: Result<AnalyzedDocument, Error>, fn: (AnalyzedDocument) async -> Result<ResponseT?, AnyJSONRPCResponseError>) async -> Result<ResponseT?, AnyJSONRPCResponseError> {
+
+    switch docResult {
+    case let .success(doc):
+      return await fn(doc)
+    case let .failure(error):
+      if let d = error as? DiagnosticSet {
+        logger.warning("Program build failed\n\n\(d)")
+        return .success(nil)
+      }
+      return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Unknown build error: \(error)"))
+    }
+  }
+
+  func withAnalyzedDocument<ResponseT>(_ textDocument: TextDocumentIdentifier, fn: (AnalyzedDocument) async -> Result<ResponseT?, AnyJSONRPCResponseError>) async -> Result<ResponseT?, AnyJSONRPCResponseError> {
+
+    let docResult = await state.getAnalyzedDocument(textDocument)
 
     switch docResult {
     case let .success(doc):
@@ -567,32 +546,75 @@ public struct HyloRequestHandler : RequestHandler {
     }
   }
 
+  func withDocumentContext<ResponseT>(_ textDocument: TextDocumentIdentifier, fn: (DocumentContext) async -> Result<ResponseT?, AnyJSONRPCResponseError>) async -> Result<ResponseT?, AnyJSONRPCResponseError> {
+    let result = await state.getDocumentContext(textDocument, includeCache: true)
+
+    switch result {
+      case let .failure(error):
+        return .failure(JSONRPCResponseError(code: ErrorCodes.InvalidParams, message: error.localizedDescription))
+      case let .success(context):
+        return await fn(context)
+    }
+  }
+
+
   // https://code.visualstudio.com/api/language-extensions/semantic-highlight-guide
   // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_semanticTokens
   public func semanticTokensFull(_ params: SemanticTokensParams) async -> Result<SemanticTokensResponse, AnyJSONRPCResponseError> {
-    await withProgram(params.textDocument) { doc in
-      let (ast, program) = (doc.ast, doc.program)
-      let tokens = ast.getSematicTokens(params.textDocument.uri, program)
-      logger.debug("[\(params.textDocument.uri)] Return \(tokens.count) semantic tokens")
-      return .success(SemanticTokens(tokens: tokens))
+    await withDocumentContext(params.textDocument) { context in
+
+      // Check if document has been built, otherwise look for cached result
+      if let analyzedDocument = await context.pollAnalyzedDocument() {
+        return await withAnalyzedDocument(analyzedDocument) { doc in
+          await semanticTokensFull(params, doc)
+        }
+      }
+
+      // Check if cached results where loaded successfully
+      if case let .success(cachedResult) = await context.getCachedDocumentResult() {
+        if let cachedTokens = cachedResult?.semanticTokens {
+          logger.debug("Use cached document semantic tokens")
+          return .success(cachedTokens)
+        }
+      }
+
+      // Otherwise wait for compiler analysis
+      return await withAnalyzedDocument(await context.getAnalyzedDocument()) { doc in
+        await semanticTokensFull(params, doc)
+      }
     }
   }
+
+  public func semanticTokensFull(_ params: SemanticTokensParams, _ doc: AnalyzedDocument) async -> Result<SemanticTokensResponse, AnyJSONRPCResponseError> {
+    let (ast, program) = (doc.ast, doc.program)
+    let tokens = ast.getSematicTokens(params.textDocument.uri, program)
+    logger.debug("[\(params.textDocument.uri)] Return \(tokens.count) semantic tokens")
+
+    let result = SemanticTokens(tokens: tokens)
+
+    // Write to result cache
+    await state.writeCachedDocumentResult(doc) { (cachedDocument: inout CachedDocumentResult) in
+      cachedDocument.semanticTokens = result
+    }
+
+
+    return .success(result)
+  }
+
 }
 
 
 public actor HyloServer {
   let lsp: JSONRPCServer
   // private var ast: AST
-  private var state: LspState
+  private var state: ServerState
   private let requestHandler: HyloRequestHandler
   private let notificationHandler: HyloNotificationHandler
 
-
   public init(_ dataChannel: DataChannel, logger: Logger) {
     lsp = JSONRPCServer(dataChannel)
-    let serverInfo = ServerInfo(name: "hylo", version: "0.1.0")
-    self.state = LspState(lsp: lsp)
-    requestHandler = HyloRequestHandler(lsp: lsp, logger: logger, serverInfo: serverInfo, state: state)
+    self.state = ServerState(lsp: lsp)
+    requestHandler = HyloRequestHandler(lsp: lsp, logger: logger, state: state)
     notificationHandler = HyloNotificationHandler(lsp: lsp, logger: logger, state: state)
 
     // Task {
