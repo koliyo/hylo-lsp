@@ -225,7 +225,7 @@ public actor ServerState {
       return nil
     }
 
-    return url.path(percentEncoded: false)
+    return url.path
   }
 
   private func buildProgram(uri: DocumentUri, stdlibPath: URL, inputs: [URL]) throws -> AnalyzedDocument {
@@ -410,7 +410,7 @@ public actor ServerState {
       let jsonData = try encoder.encode(cachedDocument)
       let dirUrl = url.deletingLastPathComponent()
 
-      if !fm.fileExists(atPath: dirUrl.path(percentEncoded: false)) {
+      if !fm.fileExists(atPath: dirUrl.path) {
         try fm.createDirectory(
           at: dirUrl,
           withIntermediateDirectories: true,

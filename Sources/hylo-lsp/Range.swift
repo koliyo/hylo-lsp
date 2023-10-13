@@ -3,7 +3,7 @@ import Core
 
 public extension LanguageServerProtocol.Location {
   init(_ range: SourceRange) {
-    self.init(uri: range.file.url.path(percentEncoded: false), range: LSPRange(range))
+    self.init(uri: range.file.url.path, range: LSPRange(range))
   }
 }
 
