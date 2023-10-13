@@ -23,4 +23,3 @@ public extension LanguageServerProtocol.Position {
     self.init(line: line-1, character: column-1)
   }
 }
-
