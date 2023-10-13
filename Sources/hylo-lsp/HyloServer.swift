@@ -301,110 +301,17 @@ public struct HyloRequestHandler : RequestHandler {
     }
   }
 
-  func kind(_ id: AnyDeclID) -> SymbolKind {
-    switch id.kind {
-      case BindingDecl.self: return SymbolKind.field
-      case VarDecl.self: return SymbolKind.field
-      case InitializerDecl.self: return SymbolKind.constructor
-      case FunctionDecl.self: return SymbolKind.function
-      case SubscriptDecl.self: return SymbolKind.function
-      case ProductTypeDecl.self: return SymbolKind.struct
-      case ConformanceDecl.self: return SymbolKind.struct
-      case TraitDecl.self: return SymbolKind.interface
-      default: return SymbolKind.object
-    }
-  }
-
-  func name(of t: AnyType) -> String {
-    switch t.base {
-    case let u as ProductType:
-      return u.name.value
-    case let u as TypeAliasType:
-      return u.name.value
-    // case let u as ConformanceLensType:
-    //   return u.name.value
-    case let u as AssociatedTypeType:
-      return u.name.value
-    case let u as GenericTypeParameterType:
-      return u.name.value
-    case let u as NamespaceType:
-      return u.name.value
-    case let u as TraitType:
-      return u.name.value
-    default:
-      logger.warning("Unexpected type: \(t.base)")
-      return "unknown"
-    }
-  }
 
   public func documentSymbol(_ params: DocumentSymbolParams, _ doc: AnalyzedDocument) async -> Result<DocumentSymbolResponse, AnyJSONRPCResponseError> {
-    let (ast, program) = (doc.ast, doc.program)
-    let symbols = ast.listDocumentSymbols(params.textDocument.uri, program)
+    let symbols = doc.ast.listDocumentSymbols(doc)
     if symbols.isEmpty {
       return .success(nil)
     }
 
-    // TODO: Move symbol lookup to walker
-    // TODO: Use lsp child symbols
-    var lspSymbols: [DocumentSymbol] = []
-    for s in symbols {
-      var detail: String? = nil
-
-      if let type = program.declType[s] {
-        // detail = program.name(of: type)
-        detail = type.description
-        // detail = "\(type.base)"
-      }
-
-      let decl = ast[s]
-      let range = LSPRange(decl.site)
-      let selectionRange = LSPRange(nameRange(of: s, in: ast) ?? decl.site)
-
-      switch decl {
-      case let d as BindingDecl:
-        let p = ast[d.pattern]
-        getSymbols(p.subpattern, program: program, ast: ast, symbols: &lspSymbols)
-      case _ as SubscriptDecl:
-        let name = program.name(of: s) ?? "subscript"
-        lspSymbols.append(DocumentSymbol(
-          name: name.stem,
-          detail: detail,
-          kind: kind(s),
-          range: range,
-          selectionRange: selectionRange
-        ))
-      case let d as ConformanceDecl:
-        let sub = ast[d.subject]
-        let name = if let t = program.exprType[d.subject]  { name(of: t) } else { "conformance" }
-        lspSymbols.append(DocumentSymbol(
-          name: name,
-          detail: detail,
-          kind: kind(s),
-          range: range,
-          selectionRange: LSPRange(sub.site)
-        ))
-
-
-      default:
-        if let name = program.name(of: s) {
-          lspSymbols.append(DocumentSymbol(
-            name: name.stem,
-            detail: detail,
-            kind: kind(s),
-            range: range,
-            selectionRange: selectionRange
-          ))
-        }
-        else {
-          logger.debug("Symbol declaration does not have a name: \(s) @ \(decl.site)")
-        }
-      }
-    }
-
     // Validate ranges
-    lspSymbols = lspSymbols.filter(validateRange)
+    let validatedSymbols = symbols.filter(validateRange)
 
-    let result: DocumentSymbolResponse = .optionA(lspSymbols)
+    let result: DocumentSymbolResponse = .optionA(validatedSymbols)
 
     // Write to result cache
     await state.writeCachedDocumentResult(doc) { (cachedDocument: inout CachedDocumentResult) in
@@ -423,38 +330,6 @@ public struct HyloRequestHandler : RequestHandler {
     return true
   }
 
-
-  func getSymbols(_ pattern: AnyPatternID, program: TypedProgram, ast: AST, symbols: inout [DocumentSymbol]) {
-    let p = ast[pattern]
-
-    switch p {
-    case let p as NamePattern:
-      let v = ast[p.decl]
-        let detail: String? = if let type = program.declType[p.decl] {
-          type.description
-        }
-        else {
-          nil
-        }
-
-      symbols.append(DocumentSymbol(
-        name: v.identifier.value,
-        detail: detail,
-        kind: SymbolKind.field,
-        range: LSPRange(v.site),
-        selectionRange: LSPRange(v.identifier.site)
-      ))
-
-    case let p as BindingPattern:
-      getSymbols(p.subpattern, program: program, ast: ast, symbols: &symbols)
-    case let p as TuplePattern:
-      for e in p.elements {
-        getSymbols(e.pattern, program: program, ast: ast, symbols: &symbols)
-      }
-    default:
-      logger.debug("Unknown pattern: \(p)")
-    }
-  }
 
   public func documentSymbol(_ params: DocumentSymbolParams) async -> Result<DocumentSymbolResponse, AnyJSONRPCResponseError> {
 

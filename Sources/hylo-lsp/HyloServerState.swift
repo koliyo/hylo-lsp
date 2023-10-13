@@ -203,9 +203,9 @@ public actor ServerState {
     let input = URL.init(string: uri)!
     let inputs: [URL] = if !isStdlibDocument { [input] } else { [] }
 
-    let cacheTask = Task {
+    let cacheTask: Task<CachedDocumentResult?, Error> = Task {
       if includeCache {
-        return try loadCachedDocumentResult(uri)
+        return loadCachedDocumentResult(uri)
       }
       else {
         return nil
@@ -225,7 +225,7 @@ public actor ServerState {
       return nil
     }
 
-    return url.path(percentEncoded: false)
+    return url.path
   }
 
   private func buildProgram(uri: DocumentUri, stdlibPath: URL, inputs: [URL]) throws -> AnalyzedDocument {
@@ -410,7 +410,7 @@ public actor ServerState {
       let jsonData = try encoder.encode(cachedDocument)
       let dirUrl = url.deletingLastPathComponent()
 
-      if !fm.fileExists(atPath: dirUrl.path(percentEncoded: false)) {
+      if !fm.fileExists(atPath: dirUrl.path) {
         try fm.createDirectory(
           at: dirUrl,
           withIntermediateDirectories: true,

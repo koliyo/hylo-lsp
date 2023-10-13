@@ -12,7 +12,7 @@ public struct InvalidUri : Error {
 //   public let url: URL
 
 //   public var absoluteString: String { url.absoluteString }
-//   public var path: String { url.path(percentEncoded: false) }
+//   public var path: String { url.path }
 //   public var isFileUri: Bool { url.isFileURL }
 
 //   public init(_ uri: String) throws {
