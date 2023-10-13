@@ -41,7 +41,7 @@ struct SemanticTokensWalker {
 
     switch node {
     case let d as NamespaceDecl:
-      addMembers(d.members)
+      addNamespace(d)
     case let d as BindingDecl:
       addBinding(d)
     case let d as InitializerDecl:
@@ -72,7 +72,13 @@ struct SemanticTokensWalker {
     }
   }
 
+  mutating func addNamespace(_ d: NamespaceDecl) {
+    addAccessModifier(d.accessModifier)
+    addIntroducer(d.introducerSite)
+    addToken(range: d.identifier.site, type: TokenType.namespace)
 
+    addMembers(d.members)
+  }
 
   mutating func addBinding(_ d: BindingDecl) {
     addAttributes(d.attributes)
