@@ -71,7 +71,6 @@ public func createServer(channel: DataChannel, workspace: URL, documents: [URL])
   let server = RestartingServer(configuration: rsConf)
 
   for doc in docs.values {
-    print("Open: \(doc.uri)")
     let docParams = TextDocumentDidOpenParams(textDocument: doc)
     try await server.textDocumentDidOpen(params: docParams)
   }
