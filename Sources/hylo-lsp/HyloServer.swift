@@ -313,10 +313,10 @@ public struct HyloRequestHandler : RequestHandler {
 
     let result: DocumentSymbolResponse = .optionA(validatedSymbols)
 
-    // // Write to result cache
-    // await state.writeCachedDocumentResult(doc) { (cachedDocument: inout CachedDocumentResult) in
-    //   cachedDocument.symbols = result
-    // }
+    // Write to result cache
+    await state.writeCachedDocumentResult(doc) { (cachedDocument: inout CachedDocumentResult) in
+      cachedDocument.symbols = result
+    }
 
     return .success(result)
   }
