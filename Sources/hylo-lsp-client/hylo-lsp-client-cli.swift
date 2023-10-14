@@ -51,16 +51,17 @@ struct Options: ParsableArguments {
     var log: Logger.Level = Logger.Level.debug
 
     @Argument(help: "Hylo document filepath")
-    var document: String
+    var documents: [String]
 
-    public func parseDocument() throws -> DocumentLocation {
+    public static func parseDocument(_ docLocation: String) throws -> DocumentLocation {
 
       #if os(Windows)
       // let search1 = try Regex(#"(.+)(?::(\d+)(?:\.(\d+))?)"#)
       logger.warning("Document path parsing not currently supported on Windows, assuming normal filepath")
-      let url = resolveDocumentUrl(document)
+      let path = docLocation
+      let url = resolveDocumentUrl(path)
       let uri = url.absoluteString
-      return DocumentLocation(filepath: document, url: url, uri: uri, line: nil, char: nil)
+      return DocumentLocation(filepath: path, url: url, uri: uri, line: nil, char: nil)
       #else
       // NOTE: Can not use regex literal, it messes with the conditional windows compilation somehow...
       // let search1 = #/(.+)(?::(\d+)(?:\.(\d+))?)/#
@@ -84,11 +85,11 @@ struct Options: ParsableArguments {
         }
       }
 
-      var path = document
       var line: UInt?
       var char: UInt?
+      var path = docLocation
 
-      if let result = try? search1.wholeMatch(in: document) {
+      if let result = try? search1.wholeMatch(in: path) {
         path = String(result.1)
         guard let l = UInt(result.2) else {
           throw ValidationError("Invalid document line number: \(result.2)")
@@ -113,8 +114,8 @@ struct Options: ParsableArguments {
       #endif
     }
 
-    func validate() throws {
-      let d = try parseDocument()
+    static func validate(_ docLocation: String) throws {
+      let d = try parseDocument(docLocation)
 
       let fm = FileManager.default
       var isDirectory: ObjCBool = false
@@ -130,7 +131,12 @@ struct Options: ParsableArguments {
       guard !isDirectory.boolValue else {
         throw ValidationError("document filepath is a directory: \(d.filepath)")
       }
+    }
 
+    func validate() throws {
+      for d in documents {
+        try Options.validate(d)
+      }
     }
 }
 
@@ -202,12 +208,18 @@ func resolveDocumentUri(_ uri: String) -> DocumentUri {
   return resolveDocumentUrl(uri).absoluteString
 }
 
+func runWithDocuments(_ docs: [String], fn: (DocumentLocation) async throws -> Void) async throws {
+  for d in docs {
+      let doc = try Options.parseDocument(d)
+      try await fn(doc)
+  }
+}
+
 extension HyloLspCommand {
   struct Symbols : AsyncParsableCommand {
     @OptionGroup var options: Options
-    func run() async throws {
-      logger.logLevel = options.log
-      let doc = try options.parseDocument()
+
+    func runDoc(_ doc: DocumentLocation) async throws {
 
       let server = try await initServer(documents: [doc.url])
       let params = DocumentSymbolParams(textDocument: TextDocumentIdentifier(uri: doc.uri))
@@ -234,6 +246,11 @@ extension HyloLspCommand {
       }
     }
 
+    func run() async throws {
+      logger.logLevel = options.log
+      try await runWithDocuments(options.documents, fn: runDoc)
+    }
+
     func documentSymbol(_ s: SymbolInformation) -> DocumentSymbol {
       DocumentSymbol(name: s.name, kind: s.kind, range: s.location.range, selectionRange: s.location.range)
     }
@@ -248,9 +265,8 @@ extension HyloLspCommand {
 
   struct Definition : AsyncParsableCommand {
     @OptionGroup var options: Options
-    func run() async throws {
-      logger.logLevel = options.log
-      let doc = try options.parseDocument()
+
+    func runDoc(_ doc: DocumentLocation) async throws {
 
       guard let pos = doc.position() else {
         throw ValidationError("Invalid position")
@@ -277,6 +293,11 @@ extension HyloLspCommand {
       }
     }
 
+    func run() async throws {
+      logger.logLevel = options.log
+      try await runWithDocuments(options.documents, fn: runDoc)
+    }
+
     func locationLink(_ l: Location) -> LocationLink {
       LocationLink(targetUri: l.uri, targetRange: l.range, targetSelectionRange: LSPRange(start: Position.zero, end: Position.zero))
     }
@@ -292,9 +313,8 @@ extension HyloLspCommand {
 
   struct Diagnostics : AsyncParsableCommand {
     @OptionGroup var options: Options
-    func run() async throws {
-      logger.logLevel = options.log
-      let doc = try options.parseDocument()
+
+    func runDoc(_ doc: DocumentLocation) async throws {
       let server = try await initServer(documents: [doc.url])
 
       let params = DocumentDiagnosticParams(textDocument: TextDocumentIdentifier(uri: doc.uri))
@@ -305,6 +325,11 @@ extension HyloLspCommand {
           print("  \(cliLink(uri: ri.location.uri, range: ri.location.range)) \(ri.message)")
         }
       }
+    }
+
+    func run() async throws {
+      logger.logLevel = options.log
+      try await runWithDocuments(options.documents, fn: runDoc)
     }
 
   }
@@ -318,14 +343,7 @@ extension HyloLspCommand {
     func validate() throws {
     }
 
-    func run() async throws {
-      logger.logLevel = options.log
-      // let docURL = URL.init(fileURLWithPath:"hylo/Examples/factorial.hylo")
-      // let docURL = URL.init(fileURLWithPath:"hylo/Library/Hylo/Array.hylo")
-      // let docURL = URL.init(fileURLWithPath: options.document)
-      let doc = try options.parseDocument()
-      // let workspace = docURL.deletingLastPathComponent()
-
+    func runDoc(_ doc: DocumentLocation) async throws {
       if let pipe = options.pipe {
         print("starting client witn named pipe: \(pipe)")
         // let fileManager = FileManager.default
@@ -365,6 +383,11 @@ extension HyloLspCommand {
 
 
       }
+    }
+
+    func run() async throws {
+      logger.logLevel = options.log
+      try await runWithDocuments(options.documents, fn: runDoc)
     }
 
   }
