@@ -1,3 +1,4 @@
+import Foundation
 import Core
 import FrontEnd
 import LanguageServerProtocol
@@ -69,8 +70,11 @@ struct SemanticTokensWalker {
       addConformance(d)
     case let d as TraitDecl:
       addTrait(d)
+    case let d as GenericParameterDecl:
+      addGenericParameter(d)
     default:
       logger.warning("Unknown node: \(node)")
+      // printStackTrace()
     }
   }
 
@@ -426,6 +430,11 @@ struct SemanticTokensWalker {
     addMembers(d.members)
   }
 
+  mutating func addGenericParameter(_ d: GenericParameterDecl) {
+    // addToken(range: d.identifier.site, type: TokenType.typeParameter)
+    // addConformances(d.conformances)
+    // addExpr(d.defaultValue)
+  }
 
   mutating func addTrait(_ d: TraitDecl) {
     addAccessModifier(d.accessModifier)

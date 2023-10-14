@@ -57,8 +57,11 @@ struct DocumentSymbolWalker {
       return [getSymbol(d)]
     case let d as BindingDecl:
       return getSymbols(d)
+    case _ as GenericParameterDecl:
+      return nil
+      // return [getSymbol(d)]
     default:
-      logger.warning("Ignored declaration node: \(node)")
+      logger.warning("Unknown node: \(node)")
       return nil
     }
   }
@@ -231,6 +234,19 @@ struct DocumentSymbolWalker {
       name: "init",
       detail: nil,
       kind: SymbolKind.constructor,
+      range: range,
+      selectionRange: selectionRange
+    )
+  }
+
+  func getSymbol(_ d: GenericParameterDecl) -> DocumentSymbol {
+    let range = LSPRange(d.site)
+    let selectionRange = LSPRange(d.identifier.site)
+
+    return DocumentSymbol(
+      name: d.identifier.value,
+      detail: nil,
+      kind: SymbolKind.typeParameter,
       range: range,
       selectionRange: selectionRange
     )
