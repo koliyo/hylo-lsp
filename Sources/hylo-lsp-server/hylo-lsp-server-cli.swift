@@ -28,6 +28,8 @@ extension Logger.Level : ExpressibleByArgument {
 @main
 struct HyloLspCommand: AsyncParsableCommand {
 
+    static var configuration = CommandConfiguration(commandName: "hylo-lsp-server")
+
     @Option(help: "Log level")
     var log: Logger.Level = Logger.Level.debug
 
