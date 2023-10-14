@@ -314,8 +314,10 @@ public struct HyloRequestHandler : RequestHandler {
     let result: DocumentSymbolResponse = .optionA(validatedSymbols)
 
     // Write to result cache
-    await state.writeCachedDocumentResult(doc) { (cachedDocument: inout CachedDocumentResult) in
-      cachedDocument.symbols = result
+    if ServerState.useCaching {
+      await state.writeCachedDocumentResult(doc) { (cachedDocument: inout CachedDocumentResult) in
+        cachedDocument.symbols = result
+      }
     }
 
     return .success(result)
@@ -343,12 +345,15 @@ public struct HyloRequestHandler : RequestHandler {
       }
 
       // Check if cached results where loaded successfully
-      if case let .success(cachedResult) = await context.getCachedDocumentResult() {
-        if let cachedSymbols = cachedResult?.symbols {
-          logger.debug("Use cached document symbols")
-          return .success(cachedSymbols)
+      if ServerState.useCaching {
+        if case let .success(cachedResult) = await context.getCachedDocumentResult() {
+          if let cachedSymbols = cachedResult?.symbols {
+            logger.debug("Use cached document symbols")
+            return .success(cachedSymbols)
+          }
         }
       }
+
 
       // Otherwise wait for compiler analysis
       return await withAnalyzedDocument(await context.getAnalyzedDocument()) { doc in
@@ -446,10 +451,12 @@ public struct HyloRequestHandler : RequestHandler {
       }
 
       // Check if cached results where loaded successfully
-      if case let .success(cachedResult) = await context.getCachedDocumentResult() {
-        if let cachedTokens = cachedResult?.semanticTokens {
-          logger.debug("Use cached document semantic tokens")
-          return .success(cachedTokens)
+      if ServerState.useCaching {
+        if case let .success(cachedResult) = await context.getCachedDocumentResult() {
+          if let cachedTokens = cachedResult?.semanticTokens {
+            logger.debug("Use cached document semantic tokens")
+            return .success(cachedTokens)
+          }
         }
       }
 
@@ -468,8 +475,10 @@ public struct HyloRequestHandler : RequestHandler {
     let result = SemanticTokens(tokens: tokens)
 
     // Write to result cache
-    await state.writeCachedDocumentResult(doc) { (cachedDocument: inout CachedDocumentResult) in
-      cachedDocument.semanticTokens = result
+    if ServerState.useCaching {
+      await state.writeCachedDocumentResult(doc) { (cachedDocument: inout CachedDocumentResult) in
+        cachedDocument.semanticTokens = result
+      }
     }
 
 

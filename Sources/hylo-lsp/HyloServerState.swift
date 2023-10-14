@@ -23,6 +23,7 @@ public actor ServerState {
   var workspaceFolders: [WorkspaceFolder]
 
   public static let defaultStdlibFilepath: URL = loadDefaultStdlibFilepath()
+  public static let useCaching = if let useCaching = ProcessInfo.processInfo.environment["HYLO_LSP_CACHING"] { !useCaching.isEmpty } else { false }
 
   public init(lsp: JSONRPCServer) {
     // self.logger = logger
@@ -204,7 +205,7 @@ public actor ServerState {
     let inputs: [URL] = if !isStdlibDocument { [input] } else { [] }
 
     let cacheTask: Task<CachedDocumentResult?, Error> = Task {
-      if includeCache {
+      if includeCache && ServerState.useCaching {
         return loadCachedDocumentResult(uri)
       }
       else {
