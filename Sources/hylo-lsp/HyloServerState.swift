@@ -24,6 +24,7 @@ public actor ServerState {
 
   public static let defaultStdlibFilepath: URL = loadDefaultStdlibFilepath()
   public static let useCaching = if let useCaching = ProcessInfo.processInfo.environment["HYLO_LSP_CACHING"] { !useCaching.isEmpty } else { false }
+  public static let disableLogging = if let disableLogging = ProcessInfo.processInfo.environment["HYLO_LSP_DISABLE_LOGGING"] { !disableLogging.isEmpty } else { false }
 
   public init(lsp: JSONRPCServer) {
     // self.logger = logger

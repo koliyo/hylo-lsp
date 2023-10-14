@@ -4,9 +4,10 @@ import LanguageClient
 import LanguageServerProtocol
 import LanguageServerProtocol_Client
 import JSONRPC
-// import UniSocket
-// import JSONRPC_DataChannel_UniSocket
-// import JSONRPC_DataChannel_Actor
+#if !os(Windows)
+import UniSocket
+import JSONRPC_DataChannel_UniSocket
+#endif
 import ArgumentParser
 import Logging
 import hylo_lsp
@@ -145,6 +146,7 @@ struct HyloLspCommand: AsyncParsableCommand {
           Diagnostics.self,
           Definition.self,
           Symbols.self,
+          Pipe.self,
         ],
         defaultSubcommand: nil)
 }
@@ -368,4 +370,34 @@ extension HyloLspCommand {
     }
 
   }
+
+  struct Pipe : AsyncParsableCommand {
+    @Argument(help: "Pipe filepath")
+    var pipeFilepath: String
+
+    func run() async throws {
+      let pipe = pipeFilepath
+
+      let fileManager = FileManager.default
+
+      // Check if file exists
+      if fileManager.fileExists(atPath: pipe) {
+          // Delete file
+          print("Delete existing socket: \(pipe)")
+          try fileManager.removeItem(atPath: pipe)
+      }
+
+      let socket = try UniSocket(type: .local, peer: pipe)
+      try socket.bind()
+      try socket.listen()
+      print("Created socket pipe: \(pipe)")
+      let client = try socket.accept()
+      print("LSP attached")
+      // client.timeout = (connect: 5, read: nil, write: 5)
+      // let clientChannel = DataChannel(socket: client)
+      // await RunHyloClientTests(channel: clientChannel, docURL: docURL)
+    }
+
+  }
+
 }

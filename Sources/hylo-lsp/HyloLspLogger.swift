@@ -22,3 +22,27 @@ internal extension Logger {
     error(Logger.Message(stringLiteral: message))
   }
 }
+
+public struct NullLogHandler: LogHandler, Sendable {
+  public var logLevel: Logger.Level = .critical
+  public var metadata: Logger.Metadata
+
+  public subscript(metadataKey key: String) -> Logger.Metadata.Value? {
+    get {
+      return metadata[key]
+    }
+    set(newValue) {
+      metadata[key] = newValue
+    }
+  }
+
+  private let label: String
+
+  public init(label: String, metadata: Logger.Metadata = [:]) {
+    self.label = label
+    self.metadata = metadata
+  }
+
+  public func log(level: Logger.Level, message: Logger.Message, metadata: Logger.Metadata?, source: String, file: String, function: String, line: UInt) {
+  }
+}
