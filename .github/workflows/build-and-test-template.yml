@@ -35,7 +35,7 @@ jobs:
       matrix:
         host: [
           { type: linux, os: ubuntu-latest,
-            build-options: "--build-tests -Xswiftc -enable-testing",
+            build-options: "--build-tests -Xswiftc -enable-testing -static-executable",
             test-options: "--enable-code-coverage"
           }
         ]
@@ -64,7 +64,7 @@ jobs:
         username: ${{ github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build and Test
+    - name: Build
       uses: devcontainers/ci@v0.3
       with:
         imageName: ghcr.io/koliyo/hylo-lsp-swift-devcontainer
