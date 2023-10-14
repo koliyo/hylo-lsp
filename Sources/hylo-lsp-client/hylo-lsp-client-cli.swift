@@ -376,6 +376,7 @@ extension HyloLspCommand {
     var pipeFilepath: String
 
     func run() async throws {
+      #if !os(Windows)
       let pipe = pipeFilepath
 
       let fileManager = FileManager.default
@@ -396,8 +397,7 @@ extension HyloLspCommand {
       // client.timeout = (connect: 5, read: nil, write: 5)
       // let clientChannel = DataChannel(socket: client)
       // await RunHyloClientTests(channel: clientChannel, docURL: docURL)
+      #endif
     }
-
   }
-
 }
