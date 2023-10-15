@@ -61,6 +61,16 @@ public actor DocumentContext {
     }
   }
 
+  public func getAST() async -> Result<AST, Error> {
+    do {
+      let ast = try await request.astTask.value
+      return .success(ast)
+    }
+    catch {
+      return .failure(error)
+    }
+  }
+
   public func getCachedDocumentResult() async -> Result<CachedDocumentResult?, Error> {
     do {
       let doc = try await request.cacheTask.value
@@ -86,10 +96,12 @@ public actor DocumentContext {
 public struct DocumentBuildRequest {
   public let uri: DocumentUri
   public let cacheTask: Task<CachedDocumentResult?, Error>
+  public let astTask: Task<AST, Error>
   public let buildTask: Task<AnalyzedDocument, Error>
 
-  public init(uri: DocumentUri, buildTask: Task<AnalyzedDocument, Error>, cacheTask: Task<CachedDocumentResult?, Error>) {
+  public init(uri: DocumentUri, astTask: Task<AST, Error>, buildTask: Task<AnalyzedDocument, Error>, cacheTask: Task<CachedDocumentResult?, Error>) {
     self.uri = uri
+    self.astTask = astTask
     self.buildTask = buildTask
     self.cacheTask = cacheTask
   }

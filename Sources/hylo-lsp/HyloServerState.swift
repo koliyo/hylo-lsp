@@ -21,6 +21,7 @@ public actor ServerState {
   let lsp: JSONRPCServer
   var rootUri: String?
   var workspaceFolders: [WorkspaceFolder]
+  var stdlibCache: [URL:AST]
 
   public static let defaultStdlibFilepath: URL = loadDefaultStdlibFilepath()
   public static let useCaching = if let useCaching = ProcessInfo.processInfo.environment["HYLO_LSP_CACHING"] { !useCaching.isEmpty } else { false }
@@ -29,6 +30,7 @@ public actor ServerState {
   public init(lsp: JSONRPCServer) {
     // self.logger = logger
     documents = [:]
+    stdlibCache = [:]
     self.lsp = lsp
     self.workspaceFolders = []
   }
@@ -214,11 +216,16 @@ public actor ServerState {
       }
     }
 
-    let buildTask = Task {
-      return try buildProgram(uri: uri, stdlibPath: stdlibPath, inputs: inputs)
+    let astTask = Task {
+      return try buildAst(uri: uri, stdlibPath: stdlibPath, inputs: inputs)
     }
 
-    let request = DocumentBuildRequest(uri: uri, buildTask: buildTask, cacheTask: cacheTask)
+    let buildTask = Task {
+      let ast = try await astTask.value
+      return try buildProgram(uri: uri, ast: ast)
+    }
+
+    let request = DocumentBuildRequest(uri: uri, astTask: astTask, buildTask: buildTask, cacheTask: cacheTask)
     return DocumentContext(request)
   }
 
@@ -230,33 +237,42 @@ public actor ServerState {
     return url.path
   }
 
-  private func buildProgram(uri: DocumentUri, stdlibPath: URL, inputs: [URL]) throws -> AnalyzedDocument {
+  private func buildAst(uri: DocumentUri, stdlibPath: URL, inputs: [URL]) throws -> AST {
+    var diagnostics = DiagnosticSet()
+    logger.debug("Build ast for document: \(uri), with stdlibPath: \(stdlibPath), inputs: \(inputs)")
+
+    var ast: AST
+    if let stdlib = stdlibCache[stdlibPath] {
+      ast = stdlib
+    }
+    else {
+      ast = try AST(libraryRoot: stdlibPath)
+      stdlibCache[stdlibPath] = ast
+    }
+
+    if !inputs.isEmpty {
+      _ = try ast.makeModule(HyloNotificationHandler.productName, sourceCode: sourceFiles(in: inputs), builtinModuleAccess: false, diagnostics: &diagnostics)
+    }
+
+    return ast
+  }
+
+  private func buildProgram(uri: DocumentUri, ast: AST) throws -> AnalyzedDocument {
     // let inputs = files.map { URL.init(fileURLWithPath: $0)}
-    let importBuiltinModule = false
     let compileSequentially = false
 
     var diagnostics = DiagnosticSet()
-    logger.debug("Build program: \(uri), with stdlibPath: \(stdlibPath), inputs: \(inputs)")
 
-    var t0 = Date()
-    var ast = try AST(libraryRoot: stdlibPath)
-    let stdlibTime = Date().timeIntervalSince(t0)
-    t0 = Date()
-
-    _ = try ast.makeModule(HyloNotificationHandler.productName, sourceCode: sourceFiles(in: inputs),
-    builtinModuleAccess: importBuiltinModule, diagnostics: &diagnostics)
-    let astTime = Date().timeIntervalSince(t0)
-    t0 = Date()
-
+    let t0 = Date()
     let p = try TypedProgram(
     annotating: ScopedProgram(ast), inParallel: !compileSequentially,
     reportingDiagnosticsTo: &diagnostics,
     tracingInferenceIf: nil)
 
     let typeCheckTime = Date().timeIntervalSince(t0)
-    logger.debug("Program is built: \(uri), stdlib ast parsing took: \(stdlibTime.milliseconds)ms, program ast parsing took: \(astTime.milliseconds)ms, type checking took: \(typeCheckTime.milliseconds)ms")
+    logger.debug("Program is built: \(uri)")
 
-    let profiling = DocumentProfiling(stdlibParsing: stdlibTime, ASTParsing: astTime, typeChecking: typeCheckTime)
+    let profiling = DocumentProfiling(stdlibParsing: TimeInterval(), ASTParsing: TimeInterval(), typeChecking: typeCheckTime)
 
     return AnalyzedDocument(uri: uri, ast: ast, program: p, profiling: profiling)
   }
@@ -335,7 +351,6 @@ public actor ServerState {
       return .failure(.other(error))
     }
   }
-
 
   // NOTE: We currently write cached results inside the workspace
   // These should perhaps be stored outside workspace, but then it is more important
