@@ -374,6 +374,10 @@ struct SemanticTokensWalker {
       case let e as PragmaLiteralExpr:
         addToken(range: e.site, type: .identifier)
 
+      case let e as ConformanceLensTypeExpr:
+        addExpr(e.subject, typeHint: .type)
+        addExpr(e.lens, typeHint: .type)
+
       default:
         logger.debug("Unknown expr: \(e)")
     }
