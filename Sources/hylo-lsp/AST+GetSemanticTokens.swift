@@ -84,10 +84,11 @@ struct SemanticTokensWalker {
     addMembers(d.members)
   }
 
-  mutating func addBinding(_ d: BindingDecl) {
+  mutating func addBinding(_ d: BindingDecl, skipAccessModifier: Bool = false) {
     addAttributes(d.attributes)
-    addAccessModifier(d.accessModifier)
-    addIntroducer(d.memberModifier)
+    if !skipAccessModifier {
+      addAccessModifier(d.accessModifier)
+    }
     addIntroducer(d.memberModifier)
     addBindingPattern(d.pattern)
     addExpr(d.initializer)
@@ -599,6 +600,17 @@ struct SemanticTokensWalker {
         addIntroducer(s.introducerSite)
         addConditions(s.condition)
         addStatements(s.body)
+      case let s as ForStmt:
+        addIntroducer(s.introducerSite)
+        addBinding(ast[s.binding], skipAccessModifier: true)
+        addIntroducer(s.domain.introducerSite)
+        addExpr(s.domain.value)
+        if let filter = s.filter {
+          addIntroducer(filter.introducerSite)
+          addExpr(filter.value)
+        }
+        addStatements(s.body)
+
       case let s as DoWhileStmt:
         addIntroducer(s.introducerSite)
         addStatements(s.body)
