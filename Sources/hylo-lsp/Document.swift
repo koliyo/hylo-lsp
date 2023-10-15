@@ -23,17 +23,16 @@ public struct AnalyzedDocument {
   }
 }
 
-public struct CachedDocumentResult: Codable {
-  public var uri: DocumentUri
-  public var symbols: DocumentSymbolResponse?
-  public var semanticTokens: SemanticTokensResponse?
-}
+// public struct CachedDocumentResult: Codable {
+//   public var uri: DocumentUri
+//   public var symbols: DocumentSymbolResponse?
+//   public var semanticTokens: SemanticTokensResponse?
+// }
 
 
 public actor DocumentContext {
   public var uri: DocumentUri { request.uri }
   public let request: DocumentBuildRequest
-  private var cachedDocumentResult: Result<CachedDocumentResult?, Error>?
   private var analyzedDocument: Result<AnalyzedDocument, Error>?
 
   public init(_ request: DocumentBuildRequest) {
@@ -45,10 +44,6 @@ public actor DocumentContext {
 
   public func pollAnalyzedDocument() -> Result<AnalyzedDocument, Error>? {
     return analyzedDocument
-  }
-
-  public func pollCachedDocumentResult() -> Result<CachedDocumentResult?, Error>? {
-    return cachedDocumentResult
   }
 
   public func getAnalyzedDocument() async -> Result<AnalyzedDocument, Error> {
@@ -71,39 +66,23 @@ public actor DocumentContext {
     }
   }
 
-  public func getCachedDocumentResult() async -> Result<CachedDocumentResult?, Error> {
-    do {
-      let doc = try await request.cacheTask.value
-      return .success(doc)
-    }
-    catch {
-      return .failure(error)
-    }
-  }
-
   private func monitorTasks() {
 
     Task {
       self.analyzedDocument = await getAnalyzedDocument()
-    }
-
-    Task {
-      self.cachedDocumentResult = await getCachedDocumentResult()
     }
   }
 }
 
 public struct DocumentBuildRequest {
   public let uri: DocumentUri
-  public let cacheTask: Task<CachedDocumentResult?, Error>
   public let astTask: Task<AST, Error>
   public let buildTask: Task<AnalyzedDocument, Error>
 
-  public init(uri: DocumentUri, astTask: Task<AST, Error>, buildTask: Task<AnalyzedDocument, Error>, cacheTask: Task<CachedDocumentResult?, Error>) {
+  public init(uri: DocumentUri, astTask: Task<AST, Error>, buildTask: Task<AnalyzedDocument, Error>) {
     self.uri = uri
     self.astTask = astTask
     self.buildTask = buildTask
-    self.cacheTask = cacheTask
   }
 }
 

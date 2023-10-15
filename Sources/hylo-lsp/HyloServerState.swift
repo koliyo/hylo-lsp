@@ -24,7 +24,6 @@ public actor ServerState {
   var stdlibCache: [URL:AST]
 
   public static let defaultStdlibFilepath: URL = loadDefaultStdlibFilepath()
-  public static let useCaching = if let useCaching = ProcessInfo.processInfo.environment["HYLO_LSP_CACHING"] { !useCaching.isEmpty } else { false }
   public static let disableLogging = if let disableLogging = ProcessInfo.processInfo.environment["HYLO_LSP_DISABLE_LOGGING"] { !disableLogging.isEmpty } else { false }
 
   public init(lsp: JSONRPCServer) {
@@ -201,20 +200,11 @@ public actor ServerState {
   }
 
 
-  private func requestDocument(_ uri: DocumentUri, includeCache: Bool) -> DocumentContext {
+  private func requestDocument(_ uri: DocumentUri) -> DocumentContext {
     let (stdlibPath, isStdlibDocument) = ServerState.getStdlibPath(uri)
 
     let input = URL.init(string: uri)!
     let inputs: [URL] = if !isStdlibDocument { [input] } else { [] }
-
-    let cacheTask: Task<CachedDocumentResult?, Error> = Task {
-      if includeCache && ServerState.useCaching {
-        return loadCachedDocumentResult(uri)
-      }
-      else {
-        return nil
-      }
-    }
 
     let astTask = Task {
       return try buildAst(uri: uri, stdlibPath: stdlibPath, inputs: inputs)
@@ -225,7 +215,7 @@ public actor ServerState {
       return try buildProgram(uri: uri, ast: ast)
     }
 
-    let request = DocumentBuildRequest(uri: uri, astTask: astTask, buildTask: buildTask, cacheTask: cacheTask)
+    let request = DocumentBuildRequest(uri: uri, astTask: astTask, buildTask: buildTask)
     return DocumentContext(request)
   }
 
@@ -308,14 +298,14 @@ public actor ServerState {
   //   return preloadDocument(uri)
   // }
 
-  private func preloadDocument(_ uri: DocumentUri, includeCache: Bool) -> DocumentContext {
-    let document = requestDocument(uri, includeCache: includeCache)
+  private func preloadDocument(_ uri: DocumentUri) -> DocumentContext {
+    let document = requestDocument(uri)
     logger.debug("Register opened document: \(uri)")
     documents[uri] = document
     return document
   }
 
-  public func getDocumentContext(_ textDocument: TextDocumentProtocol, includeCache: Bool) -> Result<DocumentContext, InvalidUri> {
+  public func getDocumentContext(_ textDocument: TextDocumentProtocol) -> Result<DocumentContext, InvalidUri> {
     guard let uri = ServerState.validateDocumentUri(textDocument.uri) else {
       return .failure(InvalidUri(textDocument.uri))
     }
@@ -325,13 +315,13 @@ public actor ServerState {
       logger.info("Found cached document: \(uri)")
       return .success(request)
     } else {
-      let request = preloadDocument(uri, includeCache: includeCache)
+      let request = preloadDocument(uri)
       return .success(request)
     }
   }
 
-  public func getAnalyzedDocument(_ textDocument: TextDocumentProtocol, includeCache: Bool = false) async -> Result<AnalyzedDocument, DocumentError> {
-    switch getDocumentContext(textDocument, includeCache: includeCache) {
+  public func getAnalyzedDocument(_ textDocument: TextDocumentProtocol) async -> Result<AnalyzedDocument, DocumentError> {
+    switch getDocumentContext(textDocument) {
       case let .failure(error):
         return .failure(.other(error))
       case let .success(context):
@@ -359,6 +349,7 @@ public actor ServerState {
     NSString.path(withComponents: [uriAsFilepath(wsFile.workspace)!, ".hylo-lsp", "cache", wsFile.relativePath + ".json"])
   }
 
+#if false
   private func loadCachedDocumentResult(_ uri: DocumentUri) -> CachedDocumentResult? {
     do {
       guard let filepath = uriAsFilepath(uri) else {
@@ -444,5 +435,6 @@ public actor ServerState {
     }
 
   }
+#endif
 }
 

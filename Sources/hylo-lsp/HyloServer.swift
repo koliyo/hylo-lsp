@@ -412,7 +412,7 @@ public struct HyloRequestHandler : RequestHandler {
   }
 
   func withDocumentContext<ResponseT>(_ textDocument: TextDocumentIdentifier, fn: (DocumentContext) async -> Result<ResponseT?, AnyJSONRPCResponseError>) async -> Result<ResponseT?, AnyJSONRPCResponseError> {
-    let result = await state.getDocumentContext(textDocument, includeCache: true)
+    let result = await state.getDocumentContext(textDocument)
 
     switch result {
       case let .failure(error):
