@@ -6,14 +6,12 @@ import LanguageServerProtocol
 struct SemanticTokensWalker {
   public let document: DocumentUri
   public let translationUnit: TranslationUnit
-  public let program: TypedProgram
   public let ast: AST
   private(set) var tokens: [SemanticToken]
 
-  public init(document: DocumentUri, translationUnit: TranslationUnit, program: TypedProgram, ast: AST) {
+  public init(document: DocumentUri, translationUnit: TranslationUnit, ast: AST) {
     self.document = document
     self.translationUnit = translationUnit
-    self.program = program
     self.ast = ast
     self.tokens = []
   }
@@ -234,6 +232,9 @@ struct SemanticTokensWalker {
     }
   }
 
+  mutating func addNameExpr(_ expr: NameExpr) {
+  }
+
   mutating func addExpr(_ expr: AnyExprID?) {
     guard let expr = expr else {
       return
@@ -242,30 +243,7 @@ struct SemanticTokensWalker {
     let e = ast[expr]
     switch e {
       case let e as NameExpr:
-        // addToken(range: d.site, type: TokenType.type)
-
-        switch e.domain {
-        case .operand:
-          logger.debug("TODO: Domain.operand @ \(e.site)")
-        case .implicit:
-          // logger.debug("TODO: Domain.implicit @ \(e.site)")
-          break
-        case let .explicit(id):
-          // logger.debug("TODO: Domain.explicit: \(id) @ \(e.site)")
-          addExpr(id)
-        case .none:
-          break
-        }
-
-        let n = NameExpr.ID(expr)!
-        let d = program.referredDecl[n]
-        let t = tokenType(d)
-        if d != nil && t == .unknown {
-          logger.warning("Unknown decl reference: \(d!)")
-        }
-
-        addToken(range: e.name.site, type: t)
-        addArguments(e.arguments)
+        addToken(range: e.site, type: TokenType.identifier)
 
       case let e as TupleTypeExpr:
 
@@ -676,7 +654,7 @@ struct SemanticTokensWalker {
 
 extension AST {
 
-  public func getSematicTokens(_ document: DocumentUri, _ program: TypedProgram) -> [SemanticToken] {
+  public func getSematicTokens(_ document: DocumentUri) -> [SemanticToken] {
     logger.debug("List semantic tokens in document: \(document)")
 
     guard let translationUnit = findTranslationUnit(document) else {
@@ -684,7 +662,7 @@ extension AST {
       return []
     }
 
-    var walker = SemanticTokensWalker(document: document, translationUnit: self[translationUnit], program: program, ast: self)
+    var walker = SemanticTokensWalker(document: document, translationUnit: self[translationUnit], ast: self)
     return walker.walk()
   }
 }

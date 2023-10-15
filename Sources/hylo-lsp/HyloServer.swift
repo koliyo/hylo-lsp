@@ -468,8 +468,7 @@ public struct HyloRequestHandler : RequestHandler {
   }
 
   public func semanticTokensFull(_ params: SemanticTokensParams, _ doc: AnalyzedDocument) async -> Result<SemanticTokensResponse, AnyJSONRPCResponseError> {
-    let (ast, program) = (doc.ast, doc.program)
-    let tokens = ast.getSematicTokens(params.textDocument.uri, program)
+    let tokens = doc.ast.getSematicTokens(params.textDocument.uri)
     logger.debug("[\(params.textDocument.uri)] Return \(tokens.count) semantic tokens")
 
     let result = SemanticTokens(tokens: tokens)
