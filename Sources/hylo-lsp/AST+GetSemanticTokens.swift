@@ -6,14 +6,12 @@ import LanguageServerProtocol
 struct SemanticTokensWalker {
   public let document: DocumentUri
   public let translationUnit: TranslationUnit
-  public let program: TypedProgram
   public let ast: AST
   private(set) var tokens: [SemanticToken]
 
-  public init(document: DocumentUri, translationUnit: TranslationUnit, program: TypedProgram, ast: AST) {
+  public init(document: DocumentUri, translationUnit: TranslationUnit, ast: AST) {
     self.document = document
     self.translationUnit = translationUnit
-    self.program = program
     self.ast = ast
     self.tokens = []
   }
@@ -81,7 +79,7 @@ struct SemanticTokensWalker {
   mutating func addNamespace(_ d: NamespaceDecl) {
     addAccessModifier(d.accessModifier)
     addIntroducer(d.introducerSite)
-    addToken(range: d.identifier.site, type: TokenType.namespace)
+    addToken(range: d.identifier.site, type: .namespace)
 
     addMembers(d.members)
   }
@@ -100,7 +98,7 @@ struct SemanticTokensWalker {
 
     switch p {
     case let p as NamePattern:
-      addToken(range: p.site, type: TokenType.variable)
+      addToken(range: p.site, type: .variable)
     case let p as WildcardPattern:
       addIntroducer(p.site)
     case let p as BindingPattern:
@@ -110,7 +108,7 @@ struct SemanticTokensWalker {
     case let p as TuplePattern:
       for e in p.elements {
         if let label = e.label {
-          addToken(range: label.site, type: TokenType.label)
+          addToken(range: label.site, type: .label)
         }
 
         addPattern(e.pattern)
@@ -132,7 +130,7 @@ struct SemanticTokensWalker {
   }
 
   mutating func addIntroducer(_ site: SourceRange) {
-    addToken(range: site, type: TokenType.keyword)
+    addToken(range: site, type: .keyword)
   }
 
   mutating func addBindingPattern(_ pattern: BindingPattern.ID) {
@@ -140,7 +138,7 @@ struct SemanticTokensWalker {
     addIntroducer(p.introducer)
 
     addPattern(p.subpattern)
-    addExpr(p.annotation)
+    addExpr(p.annotation, typeHint: .type)
   }
 
   mutating func addAttributes(_ attributes: [SourceRepresentable<Attribute>]) {
@@ -150,14 +148,14 @@ struct SemanticTokensWalker {
   }
 
   mutating func addAttribute(_ attribute: Attribute) {
-    addToken(range: attribute.name.site, type: TokenType.function)
+    addToken(range: attribute.name.site, type: .function)
 
     for a in attribute.arguments {
       switch a {
         case let .string(s):
-          addToken(range: s.site, type: TokenType.string)
+          addToken(range: s.site, type: .string)
         case let .integer(i):
-          addToken(range: i.site, type: TokenType.number)
+          addToken(range: i.site, type: .number)
       }
     }
   }
@@ -176,7 +174,9 @@ struct SemanticTokensWalker {
     let p = ast[parameter]
     addLabel(p.label)
 
-    addToken(range: p.identifier.site, type: TokenType.identifier)
+    // NOTE: We are currently using .identifier instead of .parameter here,
+    // for astetic purposes. This is similar to swift tokens
+    addToken(range: p.identifier.site, type: .identifier)
 
     if let annotation = p.annotation {
       let a = ast[annotation]
@@ -185,12 +185,13 @@ struct SemanticTokensWalker {
         addIntroducer(c.site)
       }
 
-      addExpr(a.bareType)
+      addExpr(a.bareType, typeHint: .type)
     }
 
     addExpr(p.defaultValue)
   }
 
+#if false
   // https://code.visualstudio.com/api/language-extensions/semantic-highlight-guide#standard-token-types-and-modifiers
   func tokenType(_ d: AnyDeclID) -> TokenType {
     switch d.kind {
@@ -233,8 +234,44 @@ struct SemanticTokensWalker {
         .unknown
     }
   }
+#endif
 
-  mutating func addExpr(_ expr: AnyExprID?) {
+  mutating func addNameExpr(_ e: NameExpr, typeHint: TokenType?) {
+    switch e.domain {
+      case .operand:
+        logger.debug("TODO: Domain.operand @ \(e.site)")
+      case .implicit:
+        // logger.debug("TODO: Domain.implicit @ \(e.site)")
+        break
+      case let .explicit(id):
+        // logger.debug("TODO: Domain.explicit: \(id) @ \(e.site)")
+        addExpr(id)
+      case .none:
+        break
+      }
+
+      // let n = NameExpr.ID(expr)!
+      // let d = program.referredDecl[n]
+      // let t = tokenType(d)
+      // if d != nil && t == .unknown {
+      //   logger.warning("Unknown decl reference: \(d!)")
+      // }
+
+      let t = typeHint ?? TokenType.variable
+
+      addToken(range: e.name.site, type: t)
+      addTypeArguments(e.arguments)
+  }
+
+  mutating func addTypeArguments(_ arguments: [LabeledArgument]) {
+    for a in arguments {
+      addLabel(a.label)
+      addExpr(a.value, typeHint: .typeParameter)
+    }
+  }
+
+
+  mutating func addExpr(_ expr: AnyExprID?, typeHint: TokenType? = nil) {
     guard let expr = expr else {
       return
     }
@@ -242,31 +279,8 @@ struct SemanticTokensWalker {
     let e = ast[expr]
     switch e {
       case let e as NameExpr:
-        // addToken(range: d.site, type: TokenType.type)
-
-        switch e.domain {
-        case .operand:
-          logger.debug("TODO: Domain.operand @ \(e.site)")
-        case .implicit:
-          // logger.debug("TODO: Domain.implicit @ \(e.site)")
-          break
-        case let .explicit(id):
-          // logger.debug("TODO: Domain.explicit: \(id) @ \(e.site)")
-          addExpr(id)
-        case .none:
-          break
-        }
-
-        let n = NameExpr.ID(expr)!
-        let d = program.referredDecl[n]
-        let t = tokenType(d)
-        if d != nil && t == .unknown {
-          logger.warning("Unknown decl reference: \(d!)")
-        }
-
-        addToken(range: e.name.site, type: t)
-        addArguments(e.arguments)
-
+        // addToken(range: e.site, type: .variable)
+        addNameExpr(e, typeHint: typeHint)
       case let e as TupleTypeExpr:
 
         for el in e.elements {
@@ -278,21 +292,21 @@ struct SemanticTokensWalker {
       case let e as BooleanLiteralExpr:
         addIntroducer(e.site)
       case let e as NumericLiteralExpr:
-        addToken(range: e.site, type: TokenType.number)
+        addToken(range: e.site, type: .number)
       case let e as StringLiteralExpr:
-        addToken(range: e.site, type: TokenType.string)
+        addToken(range: e.site, type: .string)
 
       case let e as FunctionCallExpr:
-        addExpr(e.callee)
+        addExpr(e.callee, typeHint: .function)
         addArguments(e.arguments)
       case let e as SubscriptCallExpr:
-        addExpr(e.callee)
+        addExpr(e.callee, typeHint: .function)
         addArguments(e.arguments)
       case let e as SequenceExpr:
         addExpr(e.head)
         for el in e.tail {
           let op = ast[el.operator]
-          addToken(range: op.site, type: TokenType.operator)
+          addToken(range: op.site, type: .operator)
           addExpr(el.operand)
         }
 
@@ -307,12 +321,12 @@ struct SemanticTokensWalker {
         addExpr(e.failure.value)
 
       case let e as InoutExpr:
-        addToken(range: e.operatorSite, type: TokenType.operator)
-        addExpr(e.subject)
+        addToken(range: e.operatorSite, type: .operator)
+        addExpr(e.subject, typeHint: typeHint)
 
       case let e as TupleMemberExpr:
         addExpr(e.tuple)
-        addToken(range: e.index.site, type: TokenType.number)
+        addToken(range: e.index.site, type: .number)
 
       case let e as TupleExpr:
         for el in e.elements {
@@ -327,9 +341,9 @@ struct SemanticTokensWalker {
           addLabel(p.label)
           let pt = ast[p.type]
           addIntroducer(pt.convention)
-          addExpr(pt.bareType)
+          addExpr(pt.bareType, typeHint: .type)
         }
-        addExpr(e.output)
+        addExpr(e.output, typeHint: .type)
 
       case let e as MatchExpr:
         addIntroducer(e.introducerSite)
@@ -342,7 +356,7 @@ struct SemanticTokensWalker {
       case let e as CastExpr:
         addIntroducer(e.introducerSite)
         addExpr(e.left)
-        addExpr(e.right)
+        addExpr(e.right, typeHint: .type)
 
       case _ as WildcardExpr:
         break
@@ -358,7 +372,7 @@ struct SemanticTokensWalker {
         addExpr(e.operand)
 
       case let e as PragmaLiteralExpr:
-        addToken(range: e.site, type: TokenType.identifier)
+        addToken(range: e.site, type: .identifier)
 
       default:
         logger.debug("Unknown expr: \(e)")
@@ -406,7 +420,7 @@ struct SemanticTokensWalker {
 
   mutating func addAssociatedType(_ d: AssociatedTypeDecl) {
     addIntroducer(d.introducerSite)
-    addToken(range: d.identifier.site, type: TokenType.type)
+    addToken(range: d.identifier.site, type: .type)
     addConformances(d.conformances)
     addWhereClause(d.whereClause)
     addExpr(d.defaultValue)
@@ -415,7 +429,7 @@ struct SemanticTokensWalker {
   mutating func addTypeAlias(_ d: TypeAliasDecl) {
     addAccessModifier(d.accessModifier)
     addIntroducer(d.introducerSite)
-    addToken(range: d.identifier.site, type: TokenType.type)
+    addToken(range: d.identifier.site, type: .type)
     addGenericClause(d.genericClause)
     addExpr(d.aliasedType)
   }
@@ -431,7 +445,7 @@ struct SemanticTokensWalker {
   }
 
   mutating func addGenericParameter(_ d: GenericParameterDecl) {
-    // addToken(range: d.identifier.site, type: TokenType.typeParameter)
+    // addToken(range: d.identifier.site, type: .typeParameter)
     // addConformances(d.conformances)
     // addExpr(d.defaultValue)
   }
@@ -439,7 +453,7 @@ struct SemanticTokensWalker {
   mutating func addTrait(_ d: TraitDecl) {
     addAccessModifier(d.accessModifier)
     addIntroducer(d.introducerSite)
-    addToken(range: d.identifier.site, type: TokenType.type)
+    addToken(range: d.identifier.site, type: .type)
     addConformances(d.refinements)
     addMembers(d.members)
   }
@@ -447,7 +461,7 @@ struct SemanticTokensWalker {
   mutating func addProductType(_ d: ProductTypeDecl) {
     addAccessModifier(d.accessModifier)
     addIntroducer(d.introducerSite)
-    addToken(range: d.identifier.site, type: TokenType.type)
+    addToken(range: d.identifier.site, type: .type)
     addGenericClause(d.genericClause)
     addConformances(d.conformances)
     addMembers(d.members)
@@ -466,12 +480,12 @@ struct SemanticTokensWalker {
     addIntroducer(d.memberModifier)
     addIntroducer(d.introducer)
     if let identifier = d.identifier {
-      addToken(range: identifier.site, type: TokenType.function)
+      addToken(range: identifier.site, type: .function)
     }
 
     addGenericClause(d.genericClause)
     addParameters(d.parameters)
-    addExpr(d.output)
+    addExpr(d.output, typeHint: .type)
 
     for i in d.impls {
       addSubscriptImpl(i)
@@ -496,13 +510,13 @@ struct SemanticTokensWalker {
     addIntroducer(d.notation)
     addIntroducer(d.introducerSite)
     if let identifier = d.identifier {
-      addToken(range: identifier.site, type: TokenType.function)
+      addToken(range: identifier.site, type: .function)
     }
 
     addGenericClause(d.genericClause)
     addParameters(d.parameters)
     addIntroducer(d.receiverEffect)
-    addExpr(d.output)
+    addExpr(d.output, typeHint: .type)
     addBody(d.body)
   }
 
@@ -511,10 +525,10 @@ struct SemanticTokensWalker {
     addIntroducer(d.introducerSite)
     addIntroducer(d.notation)
     addIntroducer(d.introducerSite)
-    addToken(range: d.name.site, type: TokenType.operator)
+    addToken(range: d.name.site, type: .operator)
 
     if let precedenceGroup = d.precedenceGroup {
-      addToken(range: precedenceGroup.site, type: TokenType.identifier)
+      addToken(range: precedenceGroup.site, type: .identifier)
     }
   }
 
@@ -523,11 +537,11 @@ struct SemanticTokensWalker {
     addAccessModifier(d.accessModifier)
     addIntroducer(d.notation)
     addIntroducer(d.introducerSite)
-    addToken(range: d.identifier.site, type: TokenType.function)
+    addToken(range: d.identifier.site, type: .function)
 
     addGenericClause(d.genericClause)
     addParameters(d.parameters)
-    addExpr(d.output)
+    addExpr(d.output, typeHint: .type)
 
     for i in d.impls {
       let i = ast[i]
@@ -573,7 +587,7 @@ struct SemanticTokensWalker {
       case let s as ExprStmt:
         addExpr(s.expr)
       case let s as ReturnStmt:
-        addToken(range: s.introducerSite, type: TokenType.keyword)
+        addToken(range: s.introducerSite, type: .keyword)
         addExpr(s.value)
       case let s as DeclStmt:
         addDecl(s.decl)
@@ -620,11 +634,11 @@ struct SemanticTokensWalker {
       switch c.value {
       case let .equality(n, e):
         let n = ast[n]
-        addToken(range: n.site, type: TokenType.type)
+        addToken(range: n.site, type: .type)
         addExpr(e)
       case let .conformance(n, _):
         let n = ast[n]
-        addToken(range: n.site, type: TokenType.type)
+        addToken(range: n.site, type: .type)
       case let .value(e):
         addExpr(e)
       }
@@ -633,7 +647,7 @@ struct SemanticTokensWalker {
 
   mutating func addLabel(_ label: SourceRepresentable<Identifier>?) {
     if let label = label {
-      addToken(range: label.site, type: TokenType.label)
+      addToken(range: label.site, type: .label)
     }
   }
 
@@ -647,7 +661,7 @@ struct SemanticTokensWalker {
   mutating func addConformances(_ conformances: [NameExpr.ID]) {
     for id in conformances {
       let n = ast[id]
-      addToken(range: n.site, type: TokenType.type)
+      addToken(range: n.site, type: .type)
     }
   }
 
@@ -663,12 +677,12 @@ struct SemanticTokensWalker {
 
     for id in genericClause.parameters {
       let p = ast[id]
-      addToken(range: p.identifier.site, type: TokenType.type)
+      addToken(range: p.identifier.site, type: .type)
       addConformances(p.conformances)
 
       if let id = p.defaultValue {
         let defaultValue = ast[id]
-        addToken(range: defaultValue.site, type: TokenType.type)
+        addToken(range: defaultValue.site, type: .type)
       }
     }
   }
@@ -676,7 +690,7 @@ struct SemanticTokensWalker {
 
 extension AST {
 
-  public func getSematicTokens(_ document: DocumentUri, _ program: TypedProgram) -> [SemanticToken] {
+  public func getSematicTokens(_ document: DocumentUri) -> [SemanticToken] {
     logger.debug("List semantic tokens in document: \(document)")
 
     guard let translationUnit = findTranslationUnit(document) else {
@@ -684,7 +698,7 @@ extension AST {
       return []
     }
 
-    var walker = SemanticTokensWalker(document: document, translationUnit: self[translationUnit], program: program, ast: self)
+    var walker = SemanticTokensWalker(document: document, translationUnit: self[translationUnit], ast: self)
     return walker.walk()
   }
 }

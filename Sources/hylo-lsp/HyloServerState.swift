@@ -21,14 +21,15 @@ public actor ServerState {
   let lsp: JSONRPCServer
   var rootUri: String?
   var workspaceFolders: [WorkspaceFolder]
+  var stdlibCache: [URL:AST]
 
   public static let defaultStdlibFilepath: URL = loadDefaultStdlibFilepath()
-  public static let useCaching = if let useCaching = ProcessInfo.processInfo.environment["HYLO_LSP_CACHING"] { !useCaching.isEmpty } else { false }
   public static let disableLogging = if let disableLogging = ProcessInfo.processInfo.environment["HYLO_LSP_DISABLE_LOGGING"] { !disableLogging.isEmpty } else { false }
 
   public init(lsp: JSONRPCServer) {
     // self.logger = logger
     documents = [:]
+    stdlibCache = [:]
     self.lsp = lsp
     self.workspaceFolders = []
   }
@@ -199,26 +200,22 @@ public actor ServerState {
   }
 
 
-  private func requestDocument(_ uri: DocumentUri, includeCache: Bool) -> DocumentContext {
+  private func requestDocument(_ uri: DocumentUri) -> DocumentContext {
     let (stdlibPath, isStdlibDocument) = ServerState.getStdlibPath(uri)
 
     let input = URL.init(string: uri)!
     let inputs: [URL] = if !isStdlibDocument { [input] } else { [] }
 
-    let cacheTask: Task<CachedDocumentResult?, Error> = Task {
-      if includeCache && ServerState.useCaching {
-        return loadCachedDocumentResult(uri)
-      }
-      else {
-        return nil
-      }
+    let astTask = Task {
+      return try buildAst(uri: uri, stdlibPath: stdlibPath, inputs: inputs)
     }
 
     let buildTask = Task {
-      return try buildProgram(uri: uri, stdlibPath: stdlibPath, inputs: inputs)
+      let ast = try await astTask.value
+      return try buildProgram(uri: uri, ast: ast)
     }
 
-    let request = DocumentBuildRequest(uri: uri, buildTask: buildTask, cacheTask: cacheTask)
+    let request = DocumentBuildRequest(uri: uri, astTask: astTask, buildTask: buildTask)
     return DocumentContext(request)
   }
 
@@ -230,33 +227,42 @@ public actor ServerState {
     return url.path
   }
 
-  private func buildProgram(uri: DocumentUri, stdlibPath: URL, inputs: [URL]) throws -> AnalyzedDocument {
+  private func buildAst(uri: DocumentUri, stdlibPath: URL, inputs: [URL]) throws -> AST {
+    var diagnostics = DiagnosticSet()
+    logger.debug("Build ast for document: \(uri), with stdlibPath: \(stdlibPath), inputs: \(inputs)")
+
+    var ast: AST
+    if let stdlib = stdlibCache[stdlibPath] {
+      ast = stdlib
+    }
+    else {
+      ast = try AST(libraryRoot: stdlibPath)
+      stdlibCache[stdlibPath] = ast
+    }
+
+    if !inputs.isEmpty {
+      _ = try ast.makeModule(HyloNotificationHandler.productName, sourceCode: sourceFiles(in: inputs), builtinModuleAccess: false, diagnostics: &diagnostics)
+    }
+
+    return ast
+  }
+
+  private func buildProgram(uri: DocumentUri, ast: AST) throws -> AnalyzedDocument {
     // let inputs = files.map { URL.init(fileURLWithPath: $0)}
-    let importBuiltinModule = false
     let compileSequentially = false
 
     var diagnostics = DiagnosticSet()
-    logger.debug("Build program: \(uri), with stdlibPath: \(stdlibPath), inputs: \(inputs)")
 
-    var t0 = Date()
-    var ast = try AST(libraryRoot: stdlibPath)
-    let stdlibTime = Date().timeIntervalSince(t0)
-    t0 = Date()
-
-    _ = try ast.makeModule(HyloNotificationHandler.productName, sourceCode: sourceFiles(in: inputs),
-    builtinModuleAccess: importBuiltinModule, diagnostics: &diagnostics)
-    let astTime = Date().timeIntervalSince(t0)
-    t0 = Date()
-
+    let t0 = Date()
     let p = try TypedProgram(
     annotating: ScopedProgram(ast), inParallel: !compileSequentially,
     reportingDiagnosticsTo: &diagnostics,
     tracingInferenceIf: nil)
 
     let typeCheckTime = Date().timeIntervalSince(t0)
-    logger.debug("Program is built: \(uri), stdlib ast parsing took: \(stdlibTime.milliseconds)ms, program ast parsing took: \(astTime.milliseconds)ms, type checking took: \(typeCheckTime.milliseconds)ms")
+    logger.debug("Program is built: \(uri)")
 
-    let profiling = DocumentProfiling(stdlibParsing: stdlibTime, ASTParsing: astTime, typeChecking: typeCheckTime)
+    let profiling = DocumentProfiling(stdlibParsing: TimeInterval(), ASTParsing: TimeInterval(), typeChecking: typeCheckTime)
 
     return AnalyzedDocument(uri: uri, ast: ast, program: p, profiling: profiling)
   }
@@ -292,14 +298,14 @@ public actor ServerState {
   //   return preloadDocument(uri)
   // }
 
-  private func preloadDocument(_ uri: DocumentUri, includeCache: Bool) -> DocumentContext {
-    let document = requestDocument(uri, includeCache: includeCache)
+  private func preloadDocument(_ uri: DocumentUri) -> DocumentContext {
+    let document = requestDocument(uri)
     logger.debug("Register opened document: \(uri)")
     documents[uri] = document
     return document
   }
 
-  public func getDocumentContext(_ textDocument: TextDocumentProtocol, includeCache: Bool) -> Result<DocumentContext, InvalidUri> {
+  public func getDocumentContext(_ textDocument: TextDocumentProtocol) -> Result<DocumentContext, InvalidUri> {
     guard let uri = ServerState.validateDocumentUri(textDocument.uri) else {
       return .failure(InvalidUri(textDocument.uri))
     }
@@ -309,13 +315,13 @@ public actor ServerState {
       logger.info("Found cached document: \(uri)")
       return .success(request)
     } else {
-      let request = preloadDocument(uri, includeCache: includeCache)
+      let request = preloadDocument(uri)
       return .success(request)
     }
   }
 
-  public func getAnalyzedDocument(_ textDocument: TextDocumentProtocol, includeCache: Bool = false) async -> Result<AnalyzedDocument, DocumentError> {
-    switch getDocumentContext(textDocument, includeCache: includeCache) {
+  public func getAnalyzedDocument(_ textDocument: TextDocumentProtocol) async -> Result<AnalyzedDocument, DocumentError> {
+    switch getDocumentContext(textDocument) {
       case let .failure(error):
         return .failure(.other(error))
       case let .success(context):
@@ -336,7 +342,6 @@ public actor ServerState {
     }
   }
 
-
   // NOTE: We currently write cached results inside the workspace
   // These should perhaps be stored outside workspace, but then it is more important
   // to implement some kind of garbage collection for out-dated workspace cache entries
@@ -344,6 +349,7 @@ public actor ServerState {
     NSString.path(withComponents: [uriAsFilepath(wsFile.workspace)!, ".hylo-lsp", "cache", wsFile.relativePath + ".json"])
   }
 
+#if false
   private func loadCachedDocumentResult(_ uri: DocumentUri) -> CachedDocumentResult? {
     do {
       guard let filepath = uriAsFilepath(uri) else {
@@ -429,5 +435,6 @@ public actor ServerState {
     }
 
   }
+#endif
 }
 
