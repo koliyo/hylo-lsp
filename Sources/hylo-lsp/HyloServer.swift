@@ -303,7 +303,7 @@ public struct HyloRequestHandler : RequestHandler {
 
 
   public func documentSymbol(_ params: DocumentSymbolParams, _ doc: AnalyzedDocument) async -> Result<DocumentSymbolResponse, AnyJSONRPCResponseError> {
-    let symbols = doc.ast.listDocumentSymbols(doc)
+    let symbols = doc.ast.listDocumentSymbols(doc.uri)
     if symbols.isEmpty {
       return .success(nil)
     }

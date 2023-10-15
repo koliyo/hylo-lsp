@@ -3,16 +3,16 @@ import FrontEnd
 import LanguageServerProtocol
 
 struct DocumentSymbolWalker {
-  let document: AnalyzedDocument
-  let translationUnit: TranslationUnit
+  public let document: DocumentUri
+  public let translationUnit: TranslationUnit
+  public let ast: AST
   private(set) var symbols: [DocumentSymbol]
 
-  var ast: AST { document.ast }
-
-  public init(document: AnalyzedDocument, translationUnit: TranslationUnit) {
-    self.document = document
-    self.translationUnit = translationUnit
-    self.symbols = []
+  public init(document: DocumentUri, translationUnit: TranslationUnit, ast: AST) {
+      self.document = document
+      self.translationUnit = translationUnit
+      self.ast = ast
+      self.symbols = []
   }
 
   public mutating func walk() -> [DocumentSymbol] {
@@ -341,13 +341,13 @@ struct DocumentSymbolWalker {
 }
 
 extension AST {
-  public func listDocumentSymbols(_ document: AnalyzedDocument) -> [DocumentSymbol] {
-    logger.debug("List symbols in document: \(document.uri)")
-    guard let translationUnit = findTranslationUnit(document.uri) else {
-      logger.error("Failed to locate translation unit: \(document.uri)")
+  public func listDocumentSymbols(_ document: DocumentUri) -> [DocumentSymbol] {
+    logger.debug("List symbols in document: \(document)")
+    guard let translationUnit = findTranslationUnit(document) else {
+      logger.error("Failed to locate translation unit: \(document)")
       return []
     }
-    var walker = DocumentSymbolWalker(document: document, translationUnit: self[translationUnit])
+    var walker = DocumentSymbolWalker(document: document, translationUnit: self[translationUnit], ast: self)
     return walker.walk()
   }
 }
