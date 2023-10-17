@@ -240,24 +240,25 @@ extension HyloLspCommand {
 
       let params = DocumentSymbolParams(textDocument: TextDocumentIdentifier(uri: doc.uri))
 
-      let symbols = try await server.documentSymbol(params: params)
+      let response = try await server.documentSymbol(params: params)
 
-      switch symbols {
+
+      switch response {
         case nil:
           print("No symbols")
-        case let .optionA(s):
-          if s.isEmpty {
+        case var .optionA(symbols):
+          if symbols.isEmpty {
             print("No symbols")
           }
-          for s in s {
-            printSymbol(s, in: doc.filepath)
+          for s in symbols {
+            printSymbol(s, in: doc)
           }
         case let .optionB(s):
           if s.isEmpty {
             print("No symbols")
           }
           for s in s {
-            printSymbol(documentSymbol(s), in: doc.filepath)
+            printSymbol(documentSymbol(s), in: doc)
           }
       }
     }
@@ -271,10 +272,23 @@ extension HyloLspCommand {
       DocumentSymbol(name: s.name, kind: s.kind, range: s.location.range, selectionRange: s.location.range)
     }
 
-    func printSymbol(_ s: DocumentSymbol, in uri: DocumentUri, indent: String = "") {
-      print("\(cliLink(uri: uri, range: s.range))\(indent) name: \(s.name), kind: \(s.kind), selection: \(s.selectionRange)")
+    func matchLocation(symbol: DocumentSymbol, doc: DocumentLocation) -> Bool {
+      guard var line = doc.line else {
+        return true
+      }
+
+      line = line - 1
+      let r = symbol.selectionRange
+      return r.start.line <= line && r.end.line >= line
+    }
+
+    func printSymbol(_ s: DocumentSymbol, in doc: DocumentLocation, indent: String = "") {
+      if matchLocation(symbol: s, doc: doc) {
+        print("\(cliLink(uri: doc.uri, range: s.range))\(indent) name: \(s.name), kind: \(s.kind), selection: \(s.selectionRange)")
+      }
+
       for c in s.children ?? [] {
-        printSymbol(c, in: uri, indent: indent + "  ")
+        printSymbol(c, in: doc, indent: indent + "  ")
       }
     }
   }
