@@ -475,12 +475,32 @@ public actor HyloServer {
 
 			switch event {
 			case let .notification(notification):
-        await notificationHandler.handleNotification(notification)
+        await notificationHandler.handleNotificationWithProfiling(notification)
 			case let .request(request):
-        await requestHandler.handleRequest(request)
+        await requestHandler.handleRequestWithProfiling(request)
 			case let .error(error):
         logger.debug("LSP stream error: \(error)")
 			}
     }
+  }
+}
+
+extension NotificationHandler {
+  func handleNotificationWithProfiling(_ notification: ClientNotification) async {
+    let t0 = Date()
+    logger.debug("Begin handle notification: \(notification.method)")
+    await handleNotification(notification)
+    let t = Date().timeIntervalSince(t0)
+    logger.debug("Complete handle notification: \(notification.method), after \(Int(t*1000))ms")
+  }
+}
+
+extension RequestHandler {
+  func handleRequestWithProfiling(_ request: ClientRequest) async {
+    let t0 = Date()
+    logger.debug("Begin handle request: \(request.method)")
+    await handleRequest(request)
+    let t = Date().timeIntervalSince(t0)
+    logger.debug("Complete handle request: \(request.method), after \(Int(t*1000))ms")
   }
 }
