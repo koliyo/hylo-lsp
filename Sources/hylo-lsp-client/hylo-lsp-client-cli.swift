@@ -89,7 +89,7 @@ struct Options: ParsableArguments {
       var char: UInt?
       var path = docLocation
 
-      if let result = try? search1.wholeMatch(in: path) {
+      if let result = try search1.wholeMatch(in: path) {
         path = String(result.1)
         guard let l = UInt(result.2) else {
           throw ValidationError("Invalid document line number: \(result.2)")
@@ -162,7 +162,7 @@ public func cliLink(uri: String, range: LSPRange) -> String {
   "\(uri):\(range.start.line+1):\(range.start.character+1)"
 }
 
-func initServer(workspace: String? = nil, documents: [URL]) async throws -> RestartingServer<
+func initServer(workspace: String? = nil, documents: [URL], openDocuments: Bool) async throws -> RestartingServer<
   JSONRPCServer
 > {
   let fm = FileManager.default
@@ -179,7 +179,7 @@ func initServer(workspace: String? = nil, documents: [URL]) async throws -> Rest
   }
 
   // Return the RPC server (client side)
-  return try await createServer(channel: clientChannel, workspace: workspace, documents: documents)
+  return try await createServer(channel: clientChannel, workspace: workspace, documents: documents, openDocuments: openDocuments)
 }
 
 func resolveDocumentUrl(_ uri: String) -> URL {
@@ -208,20 +208,34 @@ func resolveDocumentUri(_ uri: String) -> DocumentUri {
   return resolveDocumentUrl(uri).absoluteString
 }
 
-func runWithDocuments(_ docs: [String], fn: (DocumentLocation) async throws -> Void) async throws {
-  for d in docs {
-      let doc = try Options.parseDocument(d)
-      try await fn(doc)
-  }
+protocol DocumentCommand : AsyncParsableCommand {
+  func process(doc: DocumentLocation, using server: Server) async throws
 }
 
+extension DocumentCommand {
+  func processDocuments(_ docs: [String], openDocuments: Bool = true) async throws {
+    let docs = try docs.map { try Options.parseDocument($0) }
+
+    let docUrls = docs.map { $0.url }
+    let server = try await initServer(documents: docUrls, openDocuments: false)
+
+    for doc in docs {
+      let td = try textDocument(doc.url)
+      let docParams = TextDocumentDidOpenParams(textDocument: td)
+      try await server.textDocumentDidOpen(params: docParams)
+      try await self.process(doc: doc, using: server)
+    }
+  }
+
+}
+
+
 extension HyloLspCommand {
-  struct Symbols : AsyncParsableCommand {
+  struct Symbols : DocumentCommand {
     @OptionGroup var options: Options
 
-    func runDoc(_ doc: DocumentLocation) async throws {
+    func process(doc: DocumentLocation, using server: Server) async throws {
 
-      let server = try await initServer(documents: [doc.url])
       let params = DocumentSymbolParams(textDocument: TextDocumentIdentifier(uri: doc.uri))
 
       let symbols = try await server.documentSymbol(params: params)
@@ -248,7 +262,7 @@ extension HyloLspCommand {
 
     func run() async throws {
       logger.logLevel = options.log
-      try await runWithDocuments(options.documents, fn: runDoc)
+      try await processDocuments(options.documents)
     }
 
     func documentSymbol(_ s: SymbolInformation) -> DocumentSymbol {
@@ -263,16 +277,15 @@ extension HyloLspCommand {
     }
   }
 
-  struct Definition : AsyncParsableCommand {
+  struct Definition : DocumentCommand {
     @OptionGroup var options: Options
 
-    func runDoc(_ doc: DocumentLocation) async throws {
+    func process(doc: DocumentLocation, using server: Server) async throws {
 
       guard let pos = doc.position() else {
         throw ValidationError("Invalid position")
       }
 
-      let server = try await initServer(documents: [doc.url])
       let params = TextDocumentPositionParams(uri: doc.uri, position: pos)
 
       let definition = try await server.definition(params: params)
@@ -295,7 +308,7 @@ extension HyloLspCommand {
 
     func run() async throws {
       logger.logLevel = options.log
-      try await runWithDocuments(options.documents, fn: runDoc)
+      try await processDocuments(options.documents)
     }
 
     func locationLink(_ l: Location) -> LocationLink {
@@ -311,12 +324,10 @@ extension HyloLspCommand {
     }
   }
 
-  struct Diagnostics : AsyncParsableCommand {
+  struct Diagnostics : DocumentCommand {
     @OptionGroup var options: Options
 
-    func runDoc(_ doc: DocumentLocation) async throws {
-      let server = try await initServer(documents: [doc.url])
-
+    func process(doc: DocumentLocation, using server: Server) async throws {
       let params = DocumentDiagnosticParams(textDocument: TextDocumentIdentifier(uri: doc.uri))
       let report = try await server.diagnostics(params: params)
       for i in report.items ?? [] {
@@ -329,12 +340,12 @@ extension HyloLspCommand {
 
     func run() async throws {
       logger.logLevel = options.log
-      try await runWithDocuments(options.documents, fn: runDoc)
+      try await processDocuments(options.documents)
     }
 
   }
 
-  struct SemanticToken : AsyncParsableCommand {
+  struct SemanticToken : DocumentCommand {
     @OptionGroup var options: Options
 
     // @Option(help: "Specific row (1-based row counting)")
@@ -343,7 +354,7 @@ extension HyloLspCommand {
     func validate() throws {
     }
 
-    func runDoc(_ doc: DocumentLocation) async throws {
+    func process(doc: DocumentLocation, using server: Server) async throws {
       if let pipe = options.pipe {
         print("starting client witn named pipe: \(pipe)")
         // let fileManager = FileManager.default
@@ -366,7 +377,6 @@ extension HyloLspCommand {
       }
       else {
 
-        let server = try await initServer(documents: [doc.url])
         let params = SemanticTokensParams(textDocument: TextDocumentIdentifier(uri: doc.uri))
         if let tokensData = try await server.semanticTokensFull(params: params) {
           var tokens = tokensData.decode()
@@ -387,8 +397,7 @@ extension HyloLspCommand {
 
     func run() async throws {
       logger.logLevel = options.log
-      try await runWithDocuments(options.documents, fn: runDoc)
+      try await processDocuments(options.documents)
     }
-
   }
 }
