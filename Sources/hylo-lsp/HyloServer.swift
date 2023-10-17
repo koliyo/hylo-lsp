@@ -302,23 +302,15 @@ public struct HyloRequestHandler : RequestHandler {
   }
 
 
-  public func documentSymbol(_ params: DocumentSymbolParams, _ doc: AnalyzedDocument) async -> Result<DocumentSymbolResponse, AnyJSONRPCResponseError> {
-    let symbols = doc.ast.listDocumentSymbols(doc)
+  public func documentSymbol(_ params: DocumentSymbolParams, ast: AST) async -> Result<DocumentSymbolResponse, AnyJSONRPCResponseError> {
+    let symbols = ast.listDocumentSymbols(params.textDocument.uri)
     if symbols.isEmpty {
       return .success(nil)
     }
 
     // Validate ranges
     let validatedSymbols = symbols.filter(validateRange)
-
-    let result: DocumentSymbolResponse = .optionA(validatedSymbols)
-
-    // Write to result cache
-    await state.writeCachedDocumentResult(doc) { (cachedDocument: inout CachedDocumentResult) in
-      cachedDocument.symbols = result
-    }
-
-    return .success(result)
+    return .success(.optionA(validatedSymbols))
   }
 
   func validateRange(_ s: DocumentSymbol) -> Bool {
@@ -334,25 +326,9 @@ public struct HyloRequestHandler : RequestHandler {
   public func documentSymbol(_ params: DocumentSymbolParams) async -> Result<DocumentSymbolResponse, AnyJSONRPCResponseError> {
 
     await withDocumentContext(params.textDocument) { context in
-
-      // Check if document has been built, otherwise look for cached result
-      if let analyzedDocument = await context.pollAnalyzedDocument() {
-        return await withAnalyzedDocument(analyzedDocument) { doc in
-          await documentSymbol(params, doc)
-        }
-      }
-
-      // Check if cached results where loaded successfully
-      if case let .success(cachedResult) = await context.getCachedDocumentResult() {
-        if let cachedSymbols = cachedResult?.symbols {
-          logger.debug("Use cached document symbols")
-          return .success(cachedSymbols)
-        }
-      }
-
-      // Otherwise wait for compiler analysis
-      return await withAnalyzedDocument(await context.getAnalyzedDocument()) { doc in
-        await documentSymbol(params, doc)
+      let astResult = await context.getAST()
+      return await withDocument(astResult) { ast in
+        await documentSymbol(params, ast: ast)
       }
     }
   }
@@ -389,6 +365,20 @@ public struct HyloRequestHandler : RequestHandler {
   }
 
 
+  func withDocument<DocT, ResponseT>(_ docResult: Result<DocT, Error>, fn: (DocT) async -> Result<ResponseT?, AnyJSONRPCResponseError>) async -> Result<ResponseT?, AnyJSONRPCResponseError> {
+
+    switch docResult {
+    case let .success(doc):
+      return await fn(doc)
+    case let .failure(error):
+      if let d = error as? DiagnosticSet {
+        logger.warning("Program build failed\n\n\(d)")
+        return .success(nil)
+      }
+      return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Unknown build error: \(error)"))
+    }
+  }
+
   func withAnalyzedDocument<ResponseT>(_ docResult: Result<AnalyzedDocument, Error>, fn: (AnalyzedDocument) async -> Result<ResponseT?, AnyJSONRPCResponseError>) async -> Result<ResponseT?, AnyJSONRPCResponseError> {
 
     switch docResult {
@@ -422,7 +412,7 @@ public struct HyloRequestHandler : RequestHandler {
   }
 
   func withDocumentContext<ResponseT>(_ textDocument: TextDocumentIdentifier, fn: (DocumentContext) async -> Result<ResponseT?, AnyJSONRPCResponseError>) async -> Result<ResponseT?, AnyJSONRPCResponseError> {
-    let result = await state.getDocumentContext(textDocument, includeCache: true)
+    let result = await state.getDocumentContext(textDocument)
 
     switch result {
       case let .failure(error):
@@ -436,46 +426,20 @@ public struct HyloRequestHandler : RequestHandler {
   // https://code.visualstudio.com/api/language-extensions/semantic-highlight-guide
   // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_semanticTokens
   public func semanticTokensFull(_ params: SemanticTokensParams) async -> Result<SemanticTokensResponse, AnyJSONRPCResponseError> {
+
     await withDocumentContext(params.textDocument) { context in
-
-      // Check if document has been built, otherwise look for cached result
-      if let analyzedDocument = await context.pollAnalyzedDocument() {
-        return await withAnalyzedDocument(analyzedDocument) { doc in
-          await semanticTokensFull(params, doc)
-        }
-      }
-
-      // Check if cached results where loaded successfully
-      if case let .success(cachedResult) = await context.getCachedDocumentResult() {
-        if let cachedTokens = cachedResult?.semanticTokens {
-          logger.debug("Use cached document semantic tokens")
-          return .success(cachedTokens)
-        }
-      }
-
-      // Otherwise wait for compiler analysis
-      return await withAnalyzedDocument(await context.getAnalyzedDocument()) { doc in
-        await semanticTokensFull(params, doc)
+      let astResult = await context.getAST()
+      return await withDocument(astResult) { ast in
+        await semanticTokensFull(params, ast: ast)
       }
     }
   }
 
-  public func semanticTokensFull(_ params: SemanticTokensParams, _ doc: AnalyzedDocument) async -> Result<SemanticTokensResponse, AnyJSONRPCResponseError> {
-    let (ast, program) = (doc.ast, doc.program)
-    let tokens = ast.getSematicTokens(params.textDocument.uri, program)
+  public func semanticTokensFull(_ params: SemanticTokensParams, ast: AST) async -> Result<SemanticTokensResponse, AnyJSONRPCResponseError> {
+    let tokens = ast.getSematicTokens(params.textDocument.uri)
     logger.debug("[\(params.textDocument.uri)] Return \(tokens.count) semantic tokens")
-
-    let result = SemanticTokens(tokens: tokens)
-
-    // Write to result cache
-    await state.writeCachedDocumentResult(doc) { (cachedDocument: inout CachedDocumentResult) in
-      cachedDocument.semanticTokens = result
-    }
-
-
-    return .success(result)
+    return .success(SemanticTokens(tokens: tokens))
   }
-
 }
 
 

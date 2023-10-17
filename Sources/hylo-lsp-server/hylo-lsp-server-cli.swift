@@ -28,6 +28,8 @@ extension Logger.Level : ExpressibleByArgument {
 @main
 struct HyloLspCommand: AsyncParsableCommand {
 
+    static var configuration = CommandConfiguration(commandName: "hylo-lsp-server")
+
     @Option(help: "Log level")
     var log: Logger.Level = Logger.Level.debug
 
@@ -71,6 +73,27 @@ struct HyloLspCommand: AsyncParsableCommand {
       }
     }
 
+    func logHandlerFactory(_ label: String, fileLogger: FileLogger) -> LogHandler {
+      if ServerState.disableLogging {
+        return NullLogHandler(label: label)
+      }
+
+      var puppy = Puppy()
+      puppy.add(fileLogger)
+
+      let puppyHandler = PuppyLogHandler(label: label, puppy: puppy)
+
+      if stdio {
+        return puppyHandler
+      }
+
+      return MultiplexLogHandler([
+        // FileLogHandler(label: label, fileLogger: fileLogger),
+        puppyHandler,
+        StreamLogHandler.standardOutput(label: label)
+      ])
+    }
+
     func run() async throws {
 
         // Force line buffering
@@ -82,8 +105,10 @@ struct HyloLspCommand: AsyncParsableCommand {
         let fileLogger = try FileLogger("hylo-lsp",
                     logLevel: puppyLevel(log),
                     fileURL: logFileURL)
-        var puppy = Puppy()
-        puppy.add(fileLogger)
+
+        logger = Logger(label: loggerLabel) { logHandlerFactory($0, fileLogger: fileLogger) }
+
+        logger.logLevel = log
 
         // print("Hylo LSP server args: \(CommandLine.arguments)")
 
@@ -102,26 +127,8 @@ struct HyloLspCommand: AsyncParsableCommand {
           //     return handler
           // }
 
-          logger = Logger(label: loggerLabel) { label in
-            PuppyLogHandler(label: label, puppy: puppy)
-          }
-
-          logger.logLevel = log
           await run(logger: logger, channel: DataChannel.stdioPipe())
         }
-
-
-
-        // Multiplexed logging to file and console
-        logger = Logger(label: loggerLabel) { label in
-          MultiplexLogHandler([
-            // FileLogHandler(label: label, fileLogger: fileLogger),
-            PuppyLogHandler(label: label, puppy: puppy),
-            StreamLogHandler.standardOutput(label: label)
-          ])
-        }
-
-        logger.logLevel = log
 
         #if !os(Windows)
         if let socket = socket {

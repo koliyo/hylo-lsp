@@ -35,7 +35,7 @@ jobs:
       matrix:
         host: [
           { type: linux, os: ubuntu-latest,
-            build-options: "--build-tests -Xswiftc -enable-testing",
+            build-options: "-Xswiftc -static-stdlib",
             test-options: "--enable-code-coverage"
           }
         ]
@@ -64,7 +64,7 @@ jobs:
         username: ${{ github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build and Test
+    - name: Build
       uses: devcontainers/ci@v0.3
       with:
         imageName: ghcr.io/koliyo/hylo-lsp-swift-devcontainer
@@ -186,12 +186,19 @@ jobs:
 
     - name: Build (Release)
       id: build
-      # continue-on-error: true
+      continue-on-error: true
       run: |
         $BUILD_DIR = swift build -c ${{ inputs.build-type }} --show-bin-path
         echo BUILD_DIR=$BUILD_DIR
         echo BUILD_DIR=$BUILD_DIR >> $env:GITHUB_ENV
         swift build -c ${{ inputs.build-type }}
+
+    # Windows build sometimes just fails
+    - name: Retry on failure
+      continue-on-error: false
+      if: steps.build.outcome != 'success'
+      run: swift build -c ${{ inputs.build-type }}
+
 
     # - name: List build artifacts
     #   run: Get-ChildItem -Recurse $env:BUILD_DIR

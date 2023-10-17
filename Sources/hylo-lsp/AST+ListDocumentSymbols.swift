@@ -3,17 +3,16 @@ import FrontEnd
 import LanguageServerProtocol
 
 struct DocumentSymbolWalker {
-  let document: AnalyzedDocument
-  let translationUnit: TranslationUnit
+  public let document: DocumentUri
+  public let translationUnit: TranslationUnit
+  public let ast: AST
   private(set) var symbols: [DocumentSymbol]
 
-  var ast: AST { document.ast }
-  var program: TypedProgram { document.program }
-
-  public init(document: AnalyzedDocument, translationUnit: TranslationUnit) {
-    self.document = document
-    self.translationUnit = translationUnit
-    self.symbols = []
+  public init(document: DocumentUri, translationUnit: TranslationUnit, ast: AST) {
+      self.document = document
+      self.translationUnit = translationUnit
+      self.ast = ast
+      self.symbols = []
   }
 
   public mutating func walk() -> [DocumentSymbol] {
@@ -57,8 +56,11 @@ struct DocumentSymbolWalker {
       return [getSymbol(d)]
     case let d as BindingDecl:
       return getSymbols(d)
+    case _ as GenericParameterDecl:
+      return nil
+      // return [getSymbol(d)]
     default:
-      logger.warning("Ignored declaration node: \(node)")
+      logger.warning("Unknown node: \(node)")
       return nil
     }
   }
@@ -91,17 +93,25 @@ struct DocumentSymbolWalker {
     )
   }
 
+  func name(of e: AnyExprID, fallback: String) -> String {
+    let node = ast[e.base]
+    if let name = node as? NameExpr {
+      return name.name.value.description
+    }
+
+    logger.warning("Unknown named expression: \(node)")
+    return fallback
+  }
+
 
   func getSymbol(_ d: ExtensionDecl) -> DocumentSymbol {
     let range = LSPRange(d.site)
     let sub = ast[d.subject]
-    let type = program.exprType[d.subject]
     let selectionRange = LSPRange(sub.site)
 
-    let name = if let type = type { name(of: type ) } else { "extension" }
 
     return DocumentSymbol(
-      name: name,
+      name: name(of: d.subject, fallback: "extension"),
       detail: nil,
       kind: SymbolKind.struct,
       range: range,
@@ -140,13 +150,10 @@ struct DocumentSymbolWalker {
   func getSymbol(_ d: ConformanceDecl) -> DocumentSymbol {
     let range = LSPRange(d.site)
     let sub = ast[d.subject]
-    let type = program.exprType[d.subject]
     let selectionRange = LSPRange(sub.site)
 
-    let name = if let type = type { name(of: type ) } else { "conformance" }
-
     return DocumentSymbol(
-      name: name,
+      name: name(of: d.subject, fallback: "conformance"),
       detail: nil,
       kind: SymbolKind.struct,
       range: range,
@@ -236,6 +243,19 @@ struct DocumentSymbolWalker {
     )
   }
 
+  func getSymbol(_ d: GenericParameterDecl) -> DocumentSymbol {
+    let range = LSPRange(d.site)
+    let selectionRange = LSPRange(d.identifier.site)
+
+    return DocumentSymbol(
+      name: d.identifier.value,
+      detail: nil,
+      kind: SymbolKind.typeParameter,
+      range: range,
+      selectionRange: selectionRange
+    )
+  }
+
   func getSymbol(_ d: SubscriptDecl) -> DocumentSymbol {
     let range = LSPRange(d.site)
     let selectionRange = LSPRange(d.introducer.site)
@@ -253,36 +273,29 @@ struct DocumentSymbolWalker {
   func getSymbols(_ d: BindingDecl) -> [DocumentSymbol] {
     let p = ast[d.pattern]
     var symbols: [DocumentSymbol] = []
-    getSymbols(p.subpattern, program: program, ast: ast, symbols: &symbols)
+    getSymbols(p.subpattern, symbols: &symbols)
     return symbols
   }
 
-  func getSymbols(_ pattern: AnyPatternID, program: TypedProgram, ast: AST, symbols: inout [DocumentSymbol]) {
+  func getSymbols(_ pattern: AnyPatternID, symbols: inout [DocumentSymbol]) {
     let p = ast[pattern]
 
     switch p {
     case let p as NamePattern:
       let v = ast[p.decl]
-        let detail: String? = if let type = program.declType[p.decl] {
-          type.description
-        }
-        else {
-          nil
-        }
-
       symbols.append(DocumentSymbol(
         name: v.identifier.value,
-        detail: detail,
-        kind: SymbolKind.field,
+        detail: nil,
+        kind: SymbolKind.variable,
         range: LSPRange(v.site),
         selectionRange: LSPRange(v.identifier.site)
       ))
 
     case let p as BindingPattern:
-      getSymbols(p.subpattern, program: program, ast: ast, symbols: &symbols)
+      getSymbols(p.subpattern, symbols: &symbols)
     case let p as TuplePattern:
       for e in p.elements {
-        getSymbols(e.pattern, program: program, ast: ast, symbols: &symbols)
+        getSymbols(e.pattern, symbols: &symbols)
       }
     default:
       logger.debug("Unknown pattern: \(p)")
@@ -291,8 +304,8 @@ struct DocumentSymbolWalker {
 
   func kind(_ id: AnyDeclID) -> SymbolKind {
     switch id.kind {
-      case BindingDecl.self: return SymbolKind.field
-      case VarDecl.self: return SymbolKind.field
+      case BindingDecl.self: return SymbolKind.variable
+      case VarDecl.self: return SymbolKind.variable
       case InitializerDecl.self: return SymbolKind.constructor
       case FunctionDecl.self: return SymbolKind.function
       case SubscriptDecl.self: return SymbolKind.function
@@ -328,13 +341,13 @@ struct DocumentSymbolWalker {
 }
 
 extension AST {
-  public func listDocumentSymbols(_ document: AnalyzedDocument) -> [DocumentSymbol] {
-    logger.debug("List symbols in document: \(document.uri)")
-    guard let translationUnit = findTranslationUnit(document.uri) else {
-      logger.error("Failed to locate translation unit: \(document.uri)")
+  public func listDocumentSymbols(_ document: DocumentUri) -> [DocumentSymbol] {
+    logger.debug("List symbols in document: \(document)")
+    guard let translationUnit = findTranslationUnit(document) else {
+      logger.error("Failed to locate translation unit: \(document)")
       return []
     }
-    var walker = DocumentSymbolWalker(document: document, translationUnit: self[translationUnit])
+    var walker = DocumentSymbolWalker(document: document, translationUnit: self[translationUnit], ast: self)
     return walker.walk()
   }
 }
