@@ -106,8 +106,7 @@ struct HyloLspCommand: AsyncParsableCommand {
                     logLevel: puppyLevel(log),
                     fileURL: logFileURL)
 
-        logger = Logger(label: loggerLabel) { logHandlerFactory($0, fileLogger: fileLogger) }
-
+        var logger = Logger(label: loggerLabel) { logHandlerFactory($0, fileLogger: fileLogger) }
         logger.logLevel = log
 
         // print("Hylo LSP server args: \(CommandLine.arguments)")

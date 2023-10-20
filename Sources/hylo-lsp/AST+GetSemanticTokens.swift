@@ -2,18 +2,21 @@ import Foundation
 import Core
 import FrontEnd
 import LanguageServerProtocol
+import Logging
 
 struct SemanticTokensWalker {
   public let document: DocumentUri
   public let translationUnit: TranslationUnit
   public let ast: AST
+  private let logger: Logger
   private(set) var tokens: [SemanticToken]
 
-  public init(document: DocumentUri, translationUnit: TranslationUnit, ast: AST) {
+  public init(document: DocumentUri, translationUnit: TranslationUnit, ast: AST, logger: Logger) {
     self.document = document
     self.translationUnit = translationUnit
     self.ast = ast
     self.tokens = []
+    self.logger = logger
   }
 
   public mutating func walk() -> [SemanticToken] {
@@ -706,7 +709,7 @@ struct SemanticTokensWalker {
 
 extension AST {
 
-  public func getSematicTokens(_ document: DocumentUri) -> [SemanticToken] {
+  public func getSematicTokens(_ document: DocumentUri, logger: Logger) -> [SemanticToken] {
     logger.debug("List semantic tokens in document: \(document)")
 
     guard let translationUnit = findTranslationUnit(document) else {
@@ -714,7 +717,7 @@ extension AST {
       return []
     }
 
-    var walker = SemanticTokensWalker(document: document, translationUnit: self[translationUnit], ast: self)
+    var walker = SemanticTokensWalker(document: document, translationUnit: self[translationUnit], ast: self, logger: logger)
     return walker.walk()
   }
 }

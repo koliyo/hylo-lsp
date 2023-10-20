@@ -164,7 +164,7 @@ public func cliLink(uri: String, range: LSPRange) -> String {
   "\(uri):\(range.start.line+1):\(range.start.character+1)"
 }
 
-func initServer(workspace: String? = nil, documents: [URL], openDocuments: Bool) async throws -> RestartingServer<
+func initServer(workspace: String? = nil, documents: [URL], openDocuments: Bool, logger: Logger) async throws -> RestartingServer<
   JSONRPCServer
 > {
   let fm = FileManager.default
@@ -215,11 +215,11 @@ protocol DocumentCommand : AsyncParsableCommand {
 }
 
 extension DocumentCommand {
-  func processDocuments(_ docs: [String], openDocuments: Bool = true) async throws {
+  func processDocuments(_ docs: [String], openDocuments: Bool = true, logger: Logger) async throws {
     let docs = try docs.map { try Options.parseDocument($0) }
 
     let docUrls = docs.map { $0.url }
-    let server = try await initServer(documents: docUrls, openDocuments: false)
+    let server = try await initServer(documents: docUrls, openDocuments: false, logger: logger)
 
     for doc in docs {
       let td = try textDocument(doc.url)
@@ -246,7 +246,7 @@ extension HyloLspCommand {
       switch response {
         case nil:
           print("No symbols")
-        case var .optionA(symbols):
+        case let .optionA(symbols):
           if symbols.isEmpty {
             print("No symbols")
           }
@@ -264,8 +264,9 @@ extension HyloLspCommand {
     }
 
     func run() async throws {
+      var logger = Logger(label: loggerLabel)
       logger.logLevel = options.log
-      try await processDocuments(options.documents)
+      try await processDocuments(options.documents, logger: logger)
     }
 
     func documentSymbol(_ s: SymbolInformation) -> DocumentSymbol {
@@ -323,8 +324,9 @@ extension HyloLspCommand {
     }
 
     func run() async throws {
+      var logger = Logger(label: loggerLabel)
       logger.logLevel = options.log
-      try await processDocuments(options.documents)
+      try await processDocuments(options.documents, logger: logger)
     }
 
     func locationLink(_ l: Location) -> LocationLink {
@@ -355,8 +357,9 @@ extension HyloLspCommand {
     }
 
     func run() async throws {
+      var logger = Logger(label: loggerLabel)
       logger.logLevel = options.log
-      try await processDocuments(options.documents)
+      try await processDocuments(options.documents, logger: logger)
     }
 
   }
@@ -412,8 +415,9 @@ extension HyloLspCommand {
     }
 
     func run() async throws {
+      var logger = Logger(label: loggerLabel)
       logger.logLevel = options.log
-      try await processDocuments(options.documents)
+      try await processDocuments(options.documents, logger: logger)
     }
   }
 

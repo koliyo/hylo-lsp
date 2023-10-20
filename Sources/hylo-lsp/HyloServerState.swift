@@ -17,21 +17,22 @@ extension VersionedTextDocumentIdentifier : TextDocumentProtocol {}
 
 public actor ServerState {
   private var documents: [DocumentUri:DocumentContext]
-  // public let logger: Logger
+  public let logger: Logger
   let lsp: JSONRPCServer
   var rootUri: String?
   var workspaceFolders: [WorkspaceFolder]
   var stdlibCache: [URL:AST]
 
-  public static let defaultStdlibFilepath: URL = loadDefaultStdlibFilepath()
+  public let defaultStdlibFilepath: URL
   public static let disableLogging = if let disableLogging = ProcessInfo.processInfo.environment["HYLO_LSP_DISABLE_LOGGING"] { !disableLogging.isEmpty } else { false }
 
-  public init(lsp: JSONRPCServer) {
-    // self.logger = logger
+  public init(lsp: JSONRPCServer, logger: Logger) {
+    self.logger = logger
     documents = [:]
     stdlibCache = [:]
     self.lsp = lsp
     self.workspaceFolders = []
+    defaultStdlibFilepath = ServerState.loadDefaultStdlibFilepath(logger: logger)
   }
 
 
@@ -122,7 +123,7 @@ public actor ServerState {
   //   tracingInferenceIf: nil)
   // }
 
-  private static func loadDefaultStdlibFilepath() -> URL {
+  private static func loadDefaultStdlibFilepath(logger: Logger) -> URL {
     if let path = ProcessInfo.processInfo.environment["HYLO_STDLIB_PATH"] {
       logger.info("Hylo stdlib filepath from HYLO_STDLIB_PATH: \(path)")
       return URL(fileURLWithPath: path)
@@ -132,12 +133,12 @@ public actor ServerState {
     }
   }
 
-  public static func isStdlibDocument(_ uri: DocumentUri) -> Bool {
+  public func isStdlibDocument(_ uri: DocumentUri) -> Bool {
     let (_, isStdlibDocument) = getStdlibPath(uri)
     return isStdlibDocument
   }
 
-  public static func getStdlibPath(_ uri: DocumentUri) -> (stdlibPath: URL, isStdlibDocument: Bool) {
+  public func getStdlibPath(_ uri: DocumentUri) -> (stdlibPath: URL, isStdlibDocument: Bool) {
     guard let url = URL(string: uri) else {
       logger.error("invalid document uri: \(uri)")
       return (defaultStdlibFilepath, false)
@@ -201,7 +202,7 @@ public actor ServerState {
 
 
   private func requestDocument(_ uri: DocumentUri) -> DocumentContext {
-    let (stdlibPath, isStdlibDocument) = ServerState.getStdlibPath(uri)
+    let (stdlibPath, isStdlibDocument) = getStdlibPath(uri)
 
     let input = URL.init(string: uri)!
     let inputs: [URL] = if !isStdlibDocument { [input] } else { [] }

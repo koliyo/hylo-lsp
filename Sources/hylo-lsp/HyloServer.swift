@@ -303,7 +303,7 @@ public struct HyloRequestHandler : RequestHandler {
 
 
   public func documentSymbol(_ params: DocumentSymbolParams, ast: AST) async -> Result<DocumentSymbolResponse, AnyJSONRPCResponseError> {
-    let symbols = ast.listDocumentSymbols(params.textDocument.uri)
+    let symbols = ast.listDocumentSymbols(params.textDocument.uri, logger: logger)
     if symbols.isEmpty {
       return .success(nil)
     }
@@ -436,7 +436,7 @@ public struct HyloRequestHandler : RequestHandler {
   }
 
   public func semanticTokensFull(_ params: SemanticTokensParams, ast: AST) async -> Result<SemanticTokensResponse, AnyJSONRPCResponseError> {
-    let tokens = ast.getSematicTokens(params.textDocument.uri)
+    let tokens = ast.getSematicTokens(params.textDocument.uri, logger: logger)
     logger.debug("[\(params.textDocument.uri)] Return \(tokens.count) semantic tokens")
     return .success(SemanticTokens(tokens: tokens))
   }
@@ -446,13 +446,15 @@ public struct HyloRequestHandler : RequestHandler {
 public actor HyloServer {
   let lsp: JSONRPCServer
   // private var ast: AST
+  private let logger: Logger
   private var state: ServerState
   private let requestHandler: HyloRequestHandler
   private let notificationHandler: HyloNotificationHandler
 
   public init(_ dataChannel: DataChannel, logger: Logger) {
+    self.logger = logger
     lsp = JSONRPCServer(dataChannel)
-    self.state = ServerState(lsp: lsp)
+    self.state = ServerState(lsp: lsp, logger: logger)
     requestHandler = HyloRequestHandler(lsp: lsp, logger: logger, state: state)
     notificationHandler = HyloNotificationHandler(lsp: lsp, logger: logger, state: state)
 
