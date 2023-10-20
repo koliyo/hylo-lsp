@@ -4,6 +4,10 @@
 import PackageDescription
 import Foundation
 
+let commonCompileSetting: SwiftSetting =
+	.unsafeFlags(["-strict-concurrency=complete", "-warn-concurrency"])
+
+
 
 let package = Package(
   name: "hylo-lsp",
@@ -55,8 +59,11 @@ let package = Package(
         // .product(name: "UniSocket", package: "swift-unisocket"),
         // .product(name: "ProcessEnv", package: "ProcessEnv", condition: .when(platforms: [.macOS])),
       ],
-      path: "Sources/hylo-lsp"
+      path: "Sources/hylo-lsp",
       // exclude: ["hylo-lsp-server/main.swift"]
+      swiftSettings: [
+        commonCompileSetting,
+      ]
     ),
 
 
@@ -83,6 +90,7 @@ let package = Package(
       // dependencies: ["LanguageServerProtocol", "UniSocket"],
       path: "Sources/hylo-lsp-server",
       swiftSettings: [
+        commonCompileSetting,
         .unsafeFlags(["-parse-as-library"],
           .when(platforms: [
             .windows,
@@ -115,6 +123,7 @@ let package = Package(
       // dependencies: ["LanguageServerProtocol", "UniSocket"],
       path: "Sources/hylo-lsp-client",
       swiftSettings: [
+        commonCompileSetting,
         .unsafeFlags(["-parse-as-library"],
           .when(platforms: [
             .windows,
