@@ -6,8 +6,8 @@ set -ex
 swift build -c release
 BUILD_DIR=$(swift build -c release --show-bin-path)
 DIST_DIR=hylo-vscode-extension/dist
+rm -rf $DIST_DIR
 mkdir -p $DIST_DIR
-rm -rf $DIST_DIR/hylo-stdlib
 cp -Rp hylo/Library/Hylo $DIST_DIR/hylo-stdlib
 mkdir -p $DIST_DIR/bin/
 cp -fv $BUILD_DIR/hylo-lsp-server $DIST_DIR/bin/
