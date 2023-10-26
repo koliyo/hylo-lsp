@@ -5,7 +5,8 @@ import PackageDescription
 import Foundation
 
 let commonCompileSetting: SwiftSetting =
-	.unsafeFlags(["-strict-concurrency=complete", "-warn-concurrency"])
+	.unsafeFlags([])
+	// .unsafeFlags(["-strict-concurrency=complete", "-warn-concurrency"])
 
 
 
