@@ -17,10 +17,8 @@ enum BuildError : Error {
 public struct HyloNotificationHandler : NotificationHandler {
   public let lsp: JSONRPCServer
   public let logger: Logger
-  var state: ServerState
-  // var ast: AST { state.ast }
-  static let productName = "lsp-build"
-
+  var documentProvider: DocumentProvider
+  // var ast: AST { documentProvider.ast }
 
   private func withErrorLogging(_ fn: () throws -> Void) {
     do {
@@ -51,16 +49,15 @@ public struct HyloNotificationHandler : NotificationHandler {
 
 
   public func textDocumentDidOpen(_ params: TextDocumentDidOpenParams) async {
-    // _ = await state.documentProvider.preloadDocument(params.textDocument)
+    await documentProvider.registerDocument(params)
   }
 
   public func textDocumentDidChange(_ params: TextDocumentDidChangeParams) async {
-    // _ = await state.documentProvider.preloadDocument(params.textDocument)
-    // TODO: Handle changes from input (not stored on disk)
+    await documentProvider.updateDocument(params)
   }
 
   public func textDocumentDidClose(_ params: TextDocumentDidCloseParams) async {
-
+    await documentProvider.unregisterDocument(params)
   }
 
   public func textDocumentWillSave(_ params: TextDocumentWillSaveParams) async {
@@ -71,7 +68,8 @@ public struct HyloNotificationHandler : NotificationHandler {
   }
 
   public func protocolCancelRequest(_ params: CancelParams) async {
-
+    // NOTE: For cancel to work we must pass JSONRPC request ids to handlers
+    logger.debug("Cancel request: \(params.id)")
   }
 
   public func protocolSetTrace(_ params: SetTraceParams) async {
@@ -87,7 +85,7 @@ public struct HyloNotificationHandler : NotificationHandler {
   }
 
   public func workspaceDidChangeWorkspaceFolders(_ params: DidChangeWorkspaceFoldersParams) async {
-    await state.workspaceDidChangeWorkspaceFolders(params)
+    await documentProvider.workspaceDidChangeWorkspaceFolders(params)
   }
 
   public func workspaceDidChangeConfiguration(_ params: DidChangeConfigurationParams)  async {
@@ -113,21 +111,21 @@ public struct HyloRequestHandler : RequestHandler {
   public let lsp: JSONRPCServer
   public let logger: Logger
 
-  var state: ServerState
-  // var ast: AST { state.ast }
-  // var program: TypedProgram? { state.program }
+  var documentProvider: DocumentProvider
+  // var ast: AST { documentProvider.ast }
+  // var program: TypedProgram? { documentProvider.program }
   // var initTask: Task<TypedProgram, Error>
 
 
-  public init(lsp: JSONRPCServer, logger: Logger, state: ServerState) {
+  public init(lsp: JSONRPCServer, logger: Logger, documentProvider: DocumentProvider) {
     self.lsp = lsp
     self.logger = logger
-    self.state = state
+    self.documentProvider = documentProvider
   }
 
 
   public func initialize(_ params: InitializeParams) async -> Result<InitializationResponse, AnyJSONRPCResponseError> {
-    return await state.initialize(params)
+    return await documentProvider.initialize(params)
   }
 
   public func shutdown() async {
@@ -161,7 +159,7 @@ public struct HyloRequestHandler : RequestHandler {
 
   public func definition(_ params: TextDocumentPositionParams, _ doc: AnalyzedDocument) async -> Result<DefinitionResponse, AnyJSONRPCResponseError> {
 
-    guard let url = ServerState.validateDocumentUrl(params.textDocument.uri) else {
+    guard let url = DocumentProvider.validateDocumentUrl(params.textDocument.uri) else {
       return .failure(JSONRPCResponseError(code: ErrorCodes.InvalidParams, message: "Invalid document uri: \(params.textDocument.uri)"))
     }
 
@@ -325,18 +323,14 @@ public struct HyloRequestHandler : RequestHandler {
 
   public func documentSymbol(_ params: DocumentSymbolParams) async -> Result<DocumentSymbolResponse, AnyJSONRPCResponseError> {
 
-    await withDocumentContext(params.textDocument) { context in
-      let astResult = await context.getAST()
-      return await withDocument(astResult) { ast in
-        await documentSymbol(params, ast: ast)
-      }
+    await withDocumentAST(params.textDocument) { ast in
+      await documentSymbol(params, ast: ast)
     }
   }
 
   public func diagnostics(_ params: DocumentDiagnosticParams) async -> Result<DocumentDiagnosticReport, AnyJSONRPCResponseError> {
 
-
-    let docResult = await state.getAnalyzedDocument(params.textDocument)
+    let docResult = await documentProvider.getAnalyzedDocument(params.textDocument)
 
     switch docResult {
     case .success:
@@ -395,7 +389,7 @@ public struct HyloRequestHandler : RequestHandler {
 
   func withAnalyzedDocument<ResponseT>(_ textDocument: TextDocumentIdentifier, fn: (AnalyzedDocument) async -> Result<ResponseT?, AnyJSONRPCResponseError>) async -> Result<ResponseT?, AnyJSONRPCResponseError> {
 
-    let docResult = await state.getAnalyzedDocument(textDocument)
+    let docResult = await documentProvider.getAnalyzedDocument(textDocument)
 
     switch docResult {
     case let .success(doc):
@@ -411,14 +405,14 @@ public struct HyloRequestHandler : RequestHandler {
     }
   }
 
-  func withDocumentContext<ResponseT>(_ textDocument: TextDocumentIdentifier, fn: (DocumentContext) async -> Result<ResponseT?, AnyJSONRPCResponseError>) async -> Result<ResponseT?, AnyJSONRPCResponseError> {
-    let result = await state.getDocumentContext(textDocument)
+  func withDocumentAST<ResponseT>(_ textDocument: TextDocumentIdentifier, fn: (AST) async -> Result<ResponseT?, AnyJSONRPCResponseError>) async -> Result<ResponseT?, AnyJSONRPCResponseError> {
+    let result = await documentProvider.getAST(textDocument)
 
     switch result {
       case let .failure(error):
         return .failure(JSONRPCResponseError(code: ErrorCodes.InvalidParams, message: error.localizedDescription))
-      case let .success(context):
-        return await fn(context)
+      case let .success(ast):
+        return await fn(ast)
     }
   }
 
@@ -427,11 +421,8 @@ public struct HyloRequestHandler : RequestHandler {
   // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_semanticTokens
   public func semanticTokensFull(_ params: SemanticTokensParams) async -> Result<SemanticTokensResponse, AnyJSONRPCResponseError> {
 
-    await withDocumentContext(params.textDocument) { context in
-      let astResult = await context.getAST()
-      return await withDocument(astResult) { ast in
-        await semanticTokensFull(params, ast: ast)
-      }
+    await withDocumentAST(params.textDocument) { ast in
+      await semanticTokensFull(params, ast: ast)
     }
   }
 
@@ -445,26 +436,19 @@ public struct HyloRequestHandler : RequestHandler {
 
 public actor HyloServer {
   let lsp: JSONRPCServer
-  // private var ast: AST
   private let logger: Logger
-  private var state: ServerState
+  private var documentProvider: DocumentProvider
   private let requestHandler: HyloRequestHandler
   private let notificationHandler: HyloNotificationHandler
+
+  public static let disableLogging = if let disableLogging = ProcessInfo.processInfo.environment["HYLO_LSP_DISABLE_LOGGING"] { !disableLogging.isEmpty } else { false }
 
   public init(_ dataChannel: DataChannel, logger: Logger) {
     self.logger = logger
     lsp = JSONRPCServer(dataChannel)
-    self.state = ServerState(lsp: lsp, logger: logger)
-    requestHandler = HyloRequestHandler(lsp: lsp, logger: logger, state: state)
-    notificationHandler = HyloNotificationHandler(lsp: lsp, logger: logger, state: state)
-
-    // Task {
-		// 	await monitorRequests()
-		// }
-
-    // Task {
-		// 	await monitorNotifications()
-		// }
+    self.documentProvider = DocumentProvider(lsp: lsp, logger: logger)
+    requestHandler = HyloRequestHandler(lsp: lsp, logger: logger, documentProvider: documentProvider)
+    notificationHandler = HyloNotificationHandler(lsp: lsp, logger: logger, documentProvider: documentProvider)
   }
 
   public func run() async {

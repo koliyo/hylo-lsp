@@ -442,7 +442,7 @@ extension HyloLspCommand {
       try socket.bind()
       try socket.listen()
       print("Created socket pipe: \(pipe)")
-      let client = try socket.accept()
+      _ = try socket.accept()
       print("LSP attached")
       // client.timeout = (connect: 5, read: nil, write: 5)
       // let clientChannel = DataChannel(socket: client)
