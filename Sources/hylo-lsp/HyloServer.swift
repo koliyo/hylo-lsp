@@ -15,7 +15,7 @@ enum BuildError : Error {
 
 
 public struct HyloNotificationHandler : NotificationHandler {
-  public let lsp: JSONRPCClientConnection
+  public let connection: JSONRPCClientConnection
   public let logger: Logger
   var documentProvider: DocumentProvider
   // var ast: AST { documentProvider.ast }
@@ -116,7 +116,7 @@ public struct HyloNotificationHandler : NotificationHandler {
 
 
 public struct HyloRequestHandler : RequestHandler {
-  public let lsp: JSONRPCClientConnection
+  public let connection: JSONRPCClientConnection
   public let logger: Logger
 
   var documentProvider: DocumentProvider
@@ -125,8 +125,8 @@ public struct HyloRequestHandler : RequestHandler {
   // var initTask: Task<TypedProgram, Error>
 
 
-  public init(lsp: JSONRPCClientConnection, logger: Logger, documentProvider: DocumentProvider) {
-    self.lsp = lsp
+  public init(connection: JSONRPCClientConnection, logger: Logger, documentProvider: DocumentProvider) {
+    self.connection = connection
     self.logger = logger
     self.documentProvider = documentProvider
   }
@@ -249,7 +249,7 @@ public struct HyloRequestHandler : RequestHandler {
         }
 
         // return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Internal error, must be able to resolve declaration"))
-        await logInternalError("Internal error, must be able to resolve declaration")
+        logger.error("Internal error, must be able to resolve declaration")
         return .success(nil)
       }
 
@@ -379,7 +379,7 @@ public struct HyloRequestHandler : RequestHandler {
       logger.debug("[\(uri)] send diagnostics")
       let dList = diagnostics.elements.map { LanguageServerProtocol.Diagnostic($0) }
       let dp = PublishDiagnosticsParams(uri: uri, diagnostics: dList)
-      try await lsp.sendNotification(.textDocumentPublishDiagnostics(dp))
+      try await connection.sendNotification(.textDocumentPublishDiagnostics(dp))
     }
     catch {
       logger.error(Logger.Message(stringLiteral: error.localizedDescription))
@@ -474,7 +474,7 @@ public struct HyloErrorHandler : ErrorHandler {
 }
 
 public actor HyloServer {
-  let lsp: JSONRPCClientConnection
+  let connection: JSONRPCClientConnection
   private let logger: Logger
   private var documentProvider: DocumentProvider
   private let dispatcher: EventDispatcher
@@ -483,13 +483,13 @@ public actor HyloServer {
 
   public init(_ dataChannel: DataChannel, logger: Logger) {
     self.logger = logger
-    lsp = JSONRPCClientConnection(dataChannel)
-    self.documentProvider = DocumentProvider(lsp: lsp, logger: logger)
-    let requestHandler = HyloRequestHandler(lsp: lsp, logger: logger, documentProvider: documentProvider)
-    let notificationHandler = HyloNotificationHandler(lsp: lsp, logger: logger, documentProvider: documentProvider)
+    connection = JSONRPCClientConnection(dataChannel)
+    self.documentProvider = DocumentProvider(connection: connection, logger: logger)
+    let requestHandler = HyloRequestHandler(connection: connection, logger: logger, documentProvider: documentProvider)
+    let notificationHandler = HyloNotificationHandler(connection: connection, logger: logger, documentProvider: documentProvider)
     let errorHandler = HyloErrorHandler(logger: logger)
 
-    dispatcher = EventDispatcher(connection: lsp, requestHandler: requestHandler, notificationHandler: notificationHandler, errorHandler: errorHandler)
+    dispatcher = EventDispatcher(connection: connection, requestHandler: requestHandler, notificationHandler: notificationHandler, errorHandler: errorHandler)
   }
 
   public func run() async {

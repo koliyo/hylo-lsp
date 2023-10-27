@@ -23,18 +23,18 @@ public enum GetDocumentContextError : Error {
 public actor DocumentProvider {
   private var documents: [DocumentUri:DocumentContext]
   public let logger: Logger
-  let lsp: JSONRPCClientConnection
+  let connection: JSONRPCClientConnection
   var rootUri: String?
   var workspaceFolders: [WorkspaceFolder]
   var stdlibCache: [URL:AST]
 
   public let defaultStdlibFilepath: URL
 
-  public init(lsp: JSONRPCClientConnection, logger: Logger) {
+  public init(connection: JSONRPCClientConnection, logger: Logger) {
     self.logger = logger
     documents = [:]
     stdlibCache = [:]
-    self.lsp = lsp
+    self.connection = connection
     self.workspaceFolders = []
     defaultStdlibFilepath = DocumentProvider.loadDefaultStdlibFilepath(logger: logger)
   }

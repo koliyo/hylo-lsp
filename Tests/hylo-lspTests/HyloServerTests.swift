@@ -62,8 +62,8 @@ final class hyloLspTests: XCTestCase {
   func testFindDocumentRelativeWorkspacePath() async throws {
     let logger = createLogger()
     let dataChannel = DataChannel.stdioPipe()
-    let lsp = JSONRPCServer(dataChannel)
-    let documentProvider = DocumentProvider(lsp: lsp, logger: logger)
+    let connection = JSONRPCClientConnection(dataChannel)
+    let documentProvider = DocumentProvider(connection: connection, logger: logger)
 
     let caps = ClientCapabilities(workspace: nil, textDocument: nil, window: nil, general: nil, experimental: nil)
 
