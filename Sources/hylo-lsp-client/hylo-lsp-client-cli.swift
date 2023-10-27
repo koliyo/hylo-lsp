@@ -58,7 +58,7 @@ struct Options: ParsableArguments {
 
       #if os(Windows)
       // let search1 = try Regex(#"(.+)(?::(\d+)(?:\.(\d+))?)"#)
-      logger.warning("Document path parsing not currently supported on Windows, assuming normal filepath")
+      print("Document path parsing not currently supported on Windows, assuming normal filepath")
       let path = docLocation
       let url = resolveDocumentUrl(path)
       let uri = url.absoluteString
