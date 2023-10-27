@@ -463,6 +463,8 @@ public actor DocumentProvider {
     }
   }
 
+
+#if false
   // NOTE: We currently write cached results inside the workspace
   // These should perhaps be stored outside workspace, but then it is more important
   // to implement some kind of garbage collection for out-dated workspace cache entries
@@ -470,7 +472,6 @@ public actor DocumentProvider {
     NSString.path(withComponents: [uriAsFilepath(wsFile.workspace)!, ".hylo-lsp", "cache", wsFile.relativePath + ".json"])
   }
 
-#if false
   private func loadCachedDocumentResult(_ uri: DocumentUri) -> CachedDocumentResult? {
     do {
       guard let filepath = uriAsFilepath(uri) else {
