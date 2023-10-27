@@ -37,10 +37,16 @@ extension Document {
     return Document(uri: uri, version: nextVersion, text: text)
   }
 
-  private static func findPosition(_ position: Position, in text: String, startingFrom: String.Index) -> String.Index? {
+  private static func findPosition(_ position: Position, in text: String) -> String.Index? {
+    findPosition(position, in: text, startIndex: text.startIndex, startPos: Position.zero)
+  }
 
-    var it = text[startingFrom...]
-    for _ in 0..<position.line {
+  private static func findPosition(_ position: Position, in text: String, startIndex: String.Index, startPos: Position) -> String.Index? {
+
+    let lineStart = text.index(startIndex, offsetBy: -startPos.character)
+
+    var it = text[lineStart...]
+    for _ in startPos.line..<position.line {
       guard let i = it.firstIndex(of: "\n") else {
         return nil
       }
@@ -52,11 +58,11 @@ extension Document {
   }
 
   private static func findRange(_ range: LSPRange, in text: String) -> Range<String.Index>? {
-    guard let startIndex = findPosition(range.start, in: text, startingFrom: text.startIndex) else {
+    guard let startIndex = findPosition(range.start, in: text) else {
       return nil
     }
 
-    guard let endIndex = findPosition(range.end, in: text, startingFrom: startIndex) else {
+    guard let endIndex = findPosition(range.end, in: text, startIndex: startIndex, startPos: range.start) else {
       return nil
     }
 

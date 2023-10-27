@@ -26,22 +26,22 @@ final class hyloLspTests: XCTestCase {
   func testApplyDocumentChanges() async throws {
     let uri = "file:///factorial.hylo"
     let beforeEdit = """
-      fun factorial(_ n: Int) -> Int {
-        if n < 2 { 1 } else { n * factorial(n - 1) }
-      }
+    fun factorial(_ n: Int) -> Int {
+      if n < 2 { 1 } else { n * factorial(n - 1) }
+    }
 
-      public fun main() {
-        let _ = factorial(6)
-      }
+    public fun main() {
+      let _ = factorial(6)
+    }
     """
 
     let afterEdit = """
-      fun foo(_ n: Int) -> Int {
-        if n < 2 { 1 } else { n * factorial(n - 1) }
-      }
-      public fun main() {
-        let _ = foo(123)
-      }
+    fun foo(_ n: Int) -> Int {
+      if n < 2 { 1 } else { n * factorial(n - 1) }
+    }
+    public fun main() {
+      let _ = foo(123)
+    }
     """
 
     let textDocument = TextDocumentItem(uri: uri, languageId: "hylo", version: 0, text: beforeEdit)
@@ -56,7 +56,7 @@ final class hyloLspTests: XCTestCase {
     ]
 
     let updatedDoc = try doc.withAppliedChanges(changes, nextVersion: 2)
-    XCTAssertNotEqual(updatedDoc.text, afterEdit)
+    XCTAssertEqual(updatedDoc.text, afterEdit)
   }
 
   func testFindDocumentRelativeWorkspacePath() async throws {
