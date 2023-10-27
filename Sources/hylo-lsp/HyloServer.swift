@@ -338,12 +338,24 @@ public struct HyloRequestHandler : RequestHandler {
     case let .failure(error):
       switch error {
       case let .diagnostics(d):
-      let dList = d.elements.map { LanguageServerProtocol.Diagnostic($0) }
-      return .success(RelatedDocumentDiagnosticReport(kind: .full, items: dList))
+      return .success(buildDiagnosticReport(uri: params.textDocument.uri, diagnostics: d))
       case .other:
         return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Unknown build error: \(error)"))
       }
     }
+  }
+
+  func buildDiagnosticReport(uri: DocumentUri, diagnostics: DiagnosticSet) -> RelatedDocumentDiagnosticReport {
+    let matching = diagnostics.elements.filter { $0.site.file.url.absoluteString == uri }
+    let nonMatching = diagnostics.elements.filter { $0.site.file.url.absoluteString != uri }
+
+    let items = matching.map { LanguageServerProtocol.Diagnostic($0) }
+    let related = nonMatching.reduce(into: [String: LanguageServerProtocol.DocumentDiagnosticReport]()) {
+      let d = LanguageServerProtocol.Diagnostic($1)
+      $0[$1.site.file.url.absoluteString] = DocumentDiagnosticReport(kind: .full, items: [d])
+    }
+
+    return RelatedDocumentDiagnosticReport(kind: .full, items: items, relatedDocuments: related)
   }
 
   func trySendDiagnostics(_ diagnostics: DiagnosticSet, in uri: DocumentUri) async {
@@ -410,7 +422,11 @@ public struct HyloRequestHandler : RequestHandler {
 
     switch result {
       case let .failure(error):
-        return .failure(JSONRPCResponseError(code: ErrorCodes.InvalidParams, message: error.localizedDescription))
+        let errorMsg = switch error {
+        case .diagnostics: "Failed to build AST"
+        case let .other(e): e.localizedDescription
+        }
+        return .failure(JSONRPCResponseError(code: ErrorCodes.InvalidParams, message: errorMsg))
       case let .success(ast):
         return await fn(ast)
     }
