@@ -74,7 +74,7 @@ struct HyloLspCommand: AsyncParsableCommand {
     }
 
     func logHandlerFactory(_ label: String, fileLogger: FileLogger) -> LogHandler {
-      if ServerState.disableLogging {
+      if HyloServer.disableLogging {
         return NullLogHandler(label: label)
       }
 

@@ -3,14 +3,20 @@ import FrontEnd
 import Foundation
 
 extension AST {
-  internal init(libraryRoot: URL) throws {
+  internal init(sourceFiles: [SourceFile]) throws {
     self.init()
     var diagnostics = DiagnosticSet()
     coreLibrary = try makeModule(
       "Hylo",
-      sourceCode: sourceFiles(in: [libraryRoot]),
+      sourceCode: sourceFiles,
       builtinModuleAccess: true,
       diagnostics: &diagnostics)
+
     assert(isCoreModuleLoaded)
+  }
+
+  internal init(libraryRoot: URL) throws {
+    let sourceFiles = try sourceFiles(in: [libraryRoot])
+    try self.init(sourceFiles: sourceFiles)
   }
 }

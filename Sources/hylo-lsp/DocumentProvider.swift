@@ -15,7 +15,12 @@ extension TextDocumentIdentifier : TextDocumentProtocol {}
 extension TextDocumentItem : TextDocumentProtocol {}
 extension VersionedTextDocumentIdentifier : TextDocumentProtocol {}
 
-public actor ServerState {
+public enum GetDocumentContextError : Error {
+  case invalidUri(DocumentUri)
+  case documentNotOpened(DocumentUri)
+}
+
+public actor DocumentProvider {
   private var documents: [DocumentUri:DocumentContext]
   public let logger: Logger
   let lsp: JSONRPCServer
@@ -24,7 +29,6 @@ public actor ServerState {
   var stdlibCache: [URL:AST]
 
   public let defaultStdlibFilepath: URL
-  public static let disableLogging = if let disableLogging = ProcessInfo.processInfo.environment["HYLO_LSP_DISABLE_LOGGING"] { !disableLogging.isEmpty } else { false }
 
   public init(lsp: JSONRPCServer, logger: Logger) {
     self.logger = logger
@@ -32,7 +36,7 @@ public actor ServerState {
     stdlibCache = [:]
     self.lsp = lsp
     self.workspaceFolders = []
-    defaultStdlibFilepath = ServerState.loadDefaultStdlibFilepath(logger: logger)
+    defaultStdlibFilepath = DocumentProvider.loadDefaultStdlibFilepath(logger: logger)
   }
 
 
@@ -113,16 +117,6 @@ public actor ServerState {
     workspaceFolders.append(contentsOf: added)
   }
 
-  // private static func loadStdlibProgram() throws -> TypedProgram {
-  //   let ast = try AST(libraryRoot: defaultStdlibFilepath)
-
-  //   var diagnostics = DiagnosticSet()
-  //   return try TypedProgram(
-  //   annotating: ScopedProgram(ast), inParallel: true,
-  //   reportingDiagnosticsTo: &diagnostics,
-  //   tracingInferenceIf: nil)
-  // }
-
   private static func loadDefaultStdlibFilepath(logger: Logger) -> URL {
     if let path = ProcessInfo.processInfo.environment["HYLO_STDLIB_PATH"] {
       logger.info("Hylo stdlib filepath from HYLO_STDLIB_PATH: \(path)")
@@ -200,26 +194,6 @@ public actor ServerState {
     return closest
   }
 
-
-  private func requestDocument(_ uri: DocumentUri) -> DocumentContext {
-    let (stdlibPath, isStdlibDocument) = getStdlibPath(uri)
-
-    let input = URL.init(string: uri)!
-    let inputs: [URL] = if !isStdlibDocument { [input] } else { [] }
-
-    let astTask = Task {
-      return try buildAst(uri: uri, stdlibPath: stdlibPath, inputs: inputs)
-    }
-
-    let buildTask = Task {
-      let ast = try await astTask.value
-      return try buildProgram(uri: uri, ast: ast)
-    }
-
-    let request = DocumentBuildRequest(uri: uri, astTask: astTask, buildTask: buildTask)
-    return DocumentContext(request)
-  }
-
   func uriAsFilepath(_ uri: DocumentUri) -> String? {
     guard let url = URL.init(string: uri) else {
       return nil
@@ -228,21 +202,44 @@ public actor ServerState {
     return url.path
   }
 
-  private func buildAst(uri: DocumentUri, stdlibPath: URL, inputs: [URL]) throws -> AST {
-    var diagnostics = DiagnosticSet()
-    logger.debug("Build ast for document: \(uri), with stdlibPath: \(stdlibPath), inputs: \(inputs)")
+  private func buildStdlibAST(_ stdlibPath: URL) throws -> AST {
+    let sourceFiles = try sourceFiles(in: [stdlibPath]).map { file in
 
-    var ast: AST
-    if let stdlib = stdlibCache[stdlibPath] {
-      ast = stdlib
+      // We need to replace stdlib files from in memory buffers if they have unsaved changes
+      if let context = documents[file.url.absoluteString] {
+        logger.debug("Replace content for stdlib source file: \(file.url)")
+        return SourceFile(filePath: file.url, withContent: context.doc.text)
+      }
+      else {
+        return file
+      }
+    }
+
+    return try AST(sourceFiles: sourceFiles)
+  }
+
+  // We cache stdlib AST, and since AST is struct the cache values are implicitly immutable (thanks MVS!)
+  private func getStdlibAST(_ stdlibPath: URL) throws -> AST {
+    if let ast = stdlibCache[stdlibPath] {
+      return ast
     }
     else {
-      ast = try AST(libraryRoot: stdlibPath)
+      let ast = try buildStdlibAST(stdlibPath)
       stdlibCache[stdlibPath] = ast
+      return ast
     }
+  }
 
-    if !inputs.isEmpty {
-      _ = try ast.makeModule(HyloNotificationHandler.productName, sourceCode: sourceFiles(in: inputs), builtinModuleAccess: false, diagnostics: &diagnostics)
+  private func buildAST(uri: DocumentUri, stdlibPath: URL, sourceFiles: [SourceFile]) throws -> AST {
+    var diagnostics = DiagnosticSet()
+    logger.debug("Build ast for document: \(uri), with stdlibPath: \(stdlibPath)")
+
+    var ast = try getStdlibAST(stdlibPath)
+
+    if !sourceFiles.isEmpty {
+        let productName = "lsp-build"
+        // let sourceFiles = try sourceFiles(in: inputs)
+      _ = try ast.makeModule(productName, sourceCode: sourceFiles, builtinModuleAccess: false, diagnostics: &diagnostics)
     }
 
     return ast
@@ -294,30 +291,92 @@ public actor ServerState {
     return nil
   }
 
-  // public func preloadDocument(_ textDocument: TextDocumentProtocol) -> DocumentBuildRequest {
-  //   let uri = DocumentProvider.resolveDocumentUri(textDocument.uri)
-  //   return preloadDocument(uri)
-  // }
-
-  private func preloadDocument(_ uri: DocumentUri) -> DocumentContext {
-    let document = requestDocument(uri)
-    logger.debug("Register opened document: \(uri)")
-    documents[uri] = document
-    return document
-  }
-
-  public func getDocumentContext(_ textDocument: TextDocumentProtocol) -> Result<DocumentContext, InvalidUri> {
-    guard let uri = ServerState.validateDocumentUri(textDocument.uri) else {
-      return .failure(InvalidUri(textDocument.uri))
+  public func updateDocument(_ params: TextDocumentDidChangeParams) {
+    let uri = params.textDocument.uri
+    guard let context = documents[uri] else {
+      logger.error("Could not find opened document: \(uri)")
+      return
     }
 
-    // Check for cached document
-    if let request = documents[uri] {
-      logger.info("Found cached document: \(uri)")
-      return .success(request)
-    } else {
-      let request = preloadDocument(uri)
-      return .success(request)
+    do {
+      let updatedDoc = try context.doc.withAppliedChanges(params.contentChanges, nextVersion: params.textDocument.version)
+      context.doc = updatedDoc
+      context.astTask = nil
+      context.buildTask = nil
+      logger.debug("Updated changed document: \(uri), version: \(updatedDoc.version ?? -1)")
+
+      // NOTE: We also need to invalidate cached stdlib AST if the edited document is part of the stdlib
+      let (stdlibPath, isStdlibDocument) = getStdlibPath(uri)
+      if isStdlibDocument {
+        stdlibCache[stdlibPath] = nil
+      }
+    }
+    catch {
+      logger.error("Failed to apply document changes")
+    }
+  }
+
+  public func registerDocument(_ params: TextDocumentDidOpenParams) {
+    let doc = Document(textDocument: params.textDocument)
+    let context = DocumentContext(doc)
+    // requestDocument(doc)
+    logger.debug("Register opened document: \(doc.uri)")
+    documents[doc.uri] = context
+  }
+
+  public func unregisterDocument(_ params: TextDocumentDidCloseParams) {
+    let uri = params.textDocument.uri
+    documents[uri] = nil
+  }
+
+
+  func implicitlyRegisterDocument(_ uri: DocumentUri)-> DocumentContext? {
+    guard let url = URL.init(string: uri) else {
+      return nil
+    }
+
+    guard let text = try? String(contentsOf: url) else {
+      return nil
+    }
+
+    let doc = Document(uri: uri, version: 0, text: text)
+    return DocumentContext(doc)
+  }
+
+
+  func getDocumentContext(_ textDocument: TextDocumentProtocol) -> Result<DocumentContext, GetDocumentContextError> {
+    getDocumentContext(textDocument.uri)
+  }
+
+  func getDocumentContext(_ uri: DocumentUri) -> Result<DocumentContext, GetDocumentContextError> {
+    guard let uri = DocumentProvider.validateDocumentUri(uri) else {
+      return .failure(.invalidUri(uri))
+    }
+
+    guard let context = documents[uri] else {
+      // NOTE: We can not assume document is opened, VSCode apparently does not guarantee ordering
+      // Specifically `textDocument/diagnostic` -> `textDocument/didOpen` has been observed
+
+      // return .failure(.documentNotOpened(uri))
+
+      logger.warning("Implicitly registering unopened document: \(uri)")
+      if let context = implicitlyRegisterDocument(uri) {
+        return .success(context)
+      }
+      else {
+        return .failure(.invalidUri(uri))
+      }
+    }
+
+    return .success(context)
+  }
+
+  public func getAST(_ textDocument: TextDocumentProtocol) async -> Result<AST, DocumentError> {
+    switch getDocumentContext(textDocument) {
+      case let .failure(error):
+        return .failure(.other(error))
+      case let .success(context):
+        return await getAST(context)
     }
   }
 
@@ -326,14 +385,60 @@ public actor ServerState {
       case let .failure(error):
         return .failure(.other(error))
       case let .success(context):
-        return await resolveDocumentRequest(context.request)
+        return await getAnalyzedDocument(context)
     }
   }
 
-  public func resolveDocumentRequest(_ request: DocumentBuildRequest) async -> Result<AnalyzedDocument, DocumentError> {
+  private func createASTTask(_ context: DocumentContext) -> Task<AST, Error> {
+    if context.astTask == nil {
+      let uri = context.uri
+      let (stdlibPath, isStdlibDocument) = getStdlibPath(uri)
+
+      let sourceFiles: [SourceFile]
+
+      if isStdlibDocument {
+        sourceFiles = []
+      }
+      else {
+        let url = URL.init(string: uri)!
+        sourceFiles = [SourceFile(filePath: url, withContent: context.doc.text)]
+      }
+
+      context.astTask = Task {
+        return try buildAST(uri: uri, stdlibPath: stdlibPath, sourceFiles: sourceFiles)
+      }
+    }
+
+    return context.astTask!
+  }
+
+  private func getAST(_ context: DocumentContext) async -> Result<AST, DocumentError> {
     do {
-      let document = try await request.buildTask.value
-      return .success(document)
+      let astTask = createASTTask(context)
+      let ast = try await astTask.value
+      return .success(ast)
+    }
+    catch let d as DiagnosticSet {
+      // NOTE: We want to be able to use partial AST, need to update Hylo call to not throw
+      return .failure(.diagnostics(d))
+    }
+    catch {
+      return .failure(.other(error))
+    }
+  }
+
+  private func getAnalyzedDocument(_ context: DocumentContext) async -> Result<AnalyzedDocument, DocumentError> {
+    if context.buildTask == nil {
+      context.buildTask = Task {
+        let astTask = createASTTask(context)
+        let ast = try await astTask.value
+        return try buildProgram(uri: context.uri, ast: ast)
+      }
+    }
+
+    do {
+      let doc = try await context.buildTask!.value
+      return .success(doc)
     }
     catch let d as DiagnosticSet {
       return .failure(.diagnostics(d))
@@ -343,6 +448,8 @@ public actor ServerState {
     }
   }
 
+
+#if false
   // NOTE: We currently write cached results inside the workspace
   // These should perhaps be stored outside workspace, but then it is more important
   // to implement some kind of garbage collection for out-dated workspace cache entries
@@ -350,7 +457,6 @@ public actor ServerState {
     NSString.path(withComponents: [uriAsFilepath(wsFile.workspace)!, ".hylo-lsp", "cache", wsFile.relativePath + ".json"])
   }
 
-#if false
   private func loadCachedDocumentResult(_ uri: DocumentUri) -> CachedDocumentResult? {
     do {
       guard let filepath = uriAsFilepath(uri) else {
