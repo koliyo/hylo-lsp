@@ -35,7 +35,8 @@ jobs:
       matrix:
         host: [
           { type: linux, os: ubuntu-latest,
-            build-options: "-Xswiftc -static-stdlib",
+            # build-options: "-Xswiftc -static-stdlib",
+            build-options: "-Xswiftc",
             test-options: "--enable-code-coverage"
           }
         ]
