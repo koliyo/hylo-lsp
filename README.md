@@ -2,7 +2,7 @@
 
 Proof of concept LSP server for the [Hylo](https://github.com/hylo-lang/hylo) programming language, including VS Code extension.
 
-The Hylo [Hylo VSCode extension](https://github.com/koliyo/hylo-vscode-extension) dynamically downloads the LSP binaries for the current machine OS/architecture.
+The [Hylo VSCode extension](https://github.com/koliyo/hylo-vscode-extension) dynamically downloads the LSP binaries for the current machine OS/architecture.
 
 This is currently very early in development!
 
@@ -18,6 +18,8 @@ The Hylo LSP currently support the following LSP features:
   - Jump to definition
 - Diagnostics
   - Errors and warnings reported by the compiler
+
+The LSP distribution currently includes a copy of the Hylo stdlib, until we have a reliable way of locating the local Hylo installation.
 
 ## Developer
 
