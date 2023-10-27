@@ -20,7 +20,7 @@ name: Build and test
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, feature/foo ]
     paths-ignore:
       - "Docs/**"
       - "**.md"
