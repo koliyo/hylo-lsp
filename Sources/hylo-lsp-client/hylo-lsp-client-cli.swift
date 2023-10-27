@@ -210,6 +210,28 @@ func resolveDocumentUri(_ uri: String) -> DocumentUri {
   return resolveDocumentUrl(uri).absoluteString
 }
 
+func printDiagnostic(_ d: LanguageServerProtocol.Diagnostic, in filepath: String) {
+  print("\(cliLink(uri: filepath, range: d.range)) \(d.severity ?? .information): \(d.message)")
+  for ri in d.relatedInformation ?? [] {
+    print("  \(cliLink(uri: ri.location.uri, range: ri.location.range)) \(ri.message)")
+  }
+}
+
+func withDiagnosticsCheck<T>(_ fn: () async throws -> T) async throws -> T {
+  do {
+    return try await fn()
+  }
+  catch let d as DiagnosticSet {
+
+    for d in d.elements {
+      let _d = LanguageServerProtocol.Diagnostic(d)
+      printDiagnostic(_d, in: d.site.file.url.path)
+    }
+
+    throw d
+  }
+}
+
 protocol DocumentCommand : AsyncParsableCommand {
   func process(doc: DocumentLocation, using server: Server) async throws
 }
@@ -241,7 +263,6 @@ extension HyloLspCommand {
       let params = DocumentSymbolParams(textDocument: TextDocumentIdentifier(uri: doc.uri))
 
       let response = try await server.documentSymbol(params: params)
-
 
       switch response {
         case nil:
@@ -348,10 +369,13 @@ extension HyloLspCommand {
     func process(doc: DocumentLocation, using server: Server) async throws {
       let params = DocumentDiagnosticParams(textDocument: TextDocumentIdentifier(uri: doc.uri))
       let report = try await server.diagnostics(params: params)
-      for i in report.items ?? [] {
-        print("\(cliLink(uri: doc.filepath, range: i.range)) \(i.severity ?? .information): \(i.message)")
-        for ri in i.relatedInformation ?? [] {
-          print("  \(cliLink(uri: ri.location.uri, range: ri.location.range)) \(ri.message)")
+      for d in report.items ?? [] {
+        printDiagnostic(d, in: doc.filepath)
+      }
+
+      for (f, r) in report.relatedDocuments ?? [:] {
+        for d in r.items ?? [] {
+          printDiagnostic(d, in: f)
         }
       }
     }
