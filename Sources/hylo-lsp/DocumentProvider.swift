@@ -212,23 +212,39 @@ public actor DocumentProvider {
     return url.path
   }
 
+  private func buildStdlibAST(_ stdlibPath: URL) throws -> AST {
+    let sourceFiles = try sourceFiles(in: [stdlibPath]).map { file in
+
+      // We need to replace stdlib files from in memory buffers if they have unsaved changes
+      if let context = documents[file.url.absoluteString] {
+        logger.debug("Replace content for stdlib source file: \(file.url)")
+        return SourceFile(filePath: file.url, withContent: context.doc.text)
+      }
+      else {
+        return file
+      }
+    }
+
+    return try AST(sourceFiles: sourceFiles)
+  }
+
   // We cache stdlib AST, and since AST is struct the cache values are implicitly immutable (thanks MVS!)
-  private func getStdlibAst(_ stdlibPath: URL) throws -> AST {
+  private func getStdlibAST(_ stdlibPath: URL) throws -> AST {
     if let ast = stdlibCache[stdlibPath] {
       return ast
     }
     else {
-      let ast = try AST(libraryRoot: stdlibPath)
+      let ast = try buildStdlibAST(stdlibPath)
       stdlibCache[stdlibPath] = ast
       return ast
     }
   }
 
-  private func buildAst(uri: DocumentUri, stdlibPath: URL, sourceFiles: [SourceFile]) throws -> AST {
+  private func buildAST(uri: DocumentUri, stdlibPath: URL, sourceFiles: [SourceFile]) throws -> AST {
     var diagnostics = DiagnosticSet()
     logger.debug("Build ast for document: \(uri), with stdlibPath: \(stdlibPath)")
 
-    var ast = try getStdlibAst(stdlibPath)
+    var ast = try getStdlibAST(stdlibPath)
 
     if !sourceFiles.isEmpty {
         let productName = "lsp-build"
@@ -303,6 +319,12 @@ public actor DocumentProvider {
       context.astTask = nil
       context.buildTask = nil
       logger.debug("Updated changed document: \(uri), version: \(updatedDoc.version ?? -1)")
+
+      // NOTE: We also need to invalidate cached stdlib AST if the edited document is part of the stdlib
+      let (stdlibPath, isStdlibDocument) = getStdlibPath(uri)
+      if isStdlibDocument {
+        stdlibCache[stdlibPath] = nil
+      }
     }
     catch {
       logger.error("Failed to apply document changes")
@@ -338,22 +360,26 @@ public actor DocumentProvider {
 
 
   func getDocumentContext(_ textDocument: TextDocumentProtocol) -> Result<DocumentContext, GetDocumentContextError> {
-    guard let uri = DocumentProvider.validateDocumentUri(textDocument.uri) else {
-      return .failure(.invalidUri(textDocument.uri))
+    getDocumentContext(textDocument.uri)
+  }
+
+  func getDocumentContext(_ uri: DocumentUri) -> Result<DocumentContext, GetDocumentContextError> {
+    guard let uri = DocumentProvider.validateDocumentUri(uri) else {
+      return .failure(.invalidUri(uri))
     }
 
     guard let context = documents[uri] else {
       // NOTE: We can not assume document is opened, VSCode apparently does not guarantee ordering
       // Specifically `textDocument/diagnostic` -> `textDocument/didOpen` has been observed
 
-      // return .failure(.documentNotOpened(textDocument.uri))
+      // return .failure(.documentNotOpened(uri))
 
       logger.warning("Implicitly registering unopened document: \(uri)")
       if let context = implicitlyRegisterDocument(uri) {
         return .success(context)
       }
       else {
-        return .failure(.invalidUri(textDocument.uri))
+        return .failure(.invalidUri(uri))
       }
     }
 
@@ -394,7 +420,7 @@ public actor DocumentProvider {
       }
 
       context.astTask = Task {
-        return try buildAst(uri: uri, stdlibPath: stdlibPath, sourceFiles: sourceFiles)
+        return try buildAST(uri: uri, stdlibPath: stdlibPath, sourceFiles: sourceFiles)
       }
     }
 
@@ -408,6 +434,7 @@ public actor DocumentProvider {
       return .success(ast)
     }
     catch let d as DiagnosticSet {
+      // NOTE: We want to be able to use partial AST, need to update Hylo call to not throw
       return .failure(.diagnostics(d))
     }
     catch {
