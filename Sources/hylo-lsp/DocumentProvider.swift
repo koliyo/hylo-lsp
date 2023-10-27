@@ -117,16 +117,6 @@ public actor DocumentProvider {
     workspaceFolders.append(contentsOf: added)
   }
 
-  // private static func loadStdlibProgram() throws -> TypedProgram {
-  //   let ast = try AST(libraryRoot: defaultStdlibFilepath)
-
-  //   var diagnostics = DiagnosticSet()
-  //   return try TypedProgram(
-  //   annotating: ScopedProgram(ast), inParallel: true,
-  //   reportingDiagnosticsTo: &diagnostics,
-  //   tracingInferenceIf: nil)
-  // }
-
   private static func loadDefaultStdlibFilepath(logger: Logger) -> URL {
     if let path = ProcessInfo.processInfo.environment["HYLO_STDLIB_PATH"] {
       logger.info("Hylo stdlib filepath from HYLO_STDLIB_PATH: \(path)")
@@ -300,11 +290,6 @@ public actor DocumentProvider {
 
     return nil
   }
-
-  // public func preloadDocument(_ textDocument: TextDocumentProtocol) -> DocumentBuildRequest {
-  //   let uri = DocumentProvider.resolveDocumentUri(textDocument.uri)
-  //   return preloadDocument(uri)
-  // }
 
   public func updateDocument(_ params: TextDocumentDidChangeParams) {
     let uri = params.textDocument.uri
