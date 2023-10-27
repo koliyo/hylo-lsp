@@ -23,14 +23,14 @@ public enum GetDocumentContextError : Error {
 public actor DocumentProvider {
   private var documents: [DocumentUri:DocumentContext]
   public let logger: Logger
-  let lsp: JSONRPCServer
+  let lsp: JSONRPCClientConnection
   var rootUri: String?
   var workspaceFolders: [WorkspaceFolder]
   var stdlibCache: [URL:AST]
 
   public let defaultStdlibFilepath: URL
 
-  public init(lsp: JSONRPCServer, logger: Logger) {
+  public init(lsp: JSONRPCClientConnection, logger: Logger) {
     self.logger = logger
     documents = [:]
     stdlibCache = [:]
@@ -291,7 +291,7 @@ public actor DocumentProvider {
     return nil
   }
 
-  public func updateDocument(_ params: TextDocumentDidChangeParams) {
+  public func updateDocument(_ params: DidChangeTextDocumentParams) {
     let uri = params.textDocument.uri
     guard let context = documents[uri] else {
       logger.error("Could not find opened document: \(uri)")
@@ -316,7 +316,7 @@ public actor DocumentProvider {
     }
   }
 
-  public func registerDocument(_ params: TextDocumentDidOpenParams) {
+  public func registerDocument(_ params: DidOpenTextDocumentParams) {
     let doc = Document(textDocument: params.textDocument)
     let context = DocumentContext(doc)
     // requestDocument(doc)
@@ -324,7 +324,7 @@ public actor DocumentProvider {
     documents[doc.uri] = context
   }
 
-  public func unregisterDocument(_ params: TextDocumentDidCloseParams) {
+  public func unregisterDocument(_ params: DidCloseTextDocumentParams) {
     let uri = params.textDocument.uri
     documents[uri] = nil
   }

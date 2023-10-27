@@ -20,8 +20,8 @@ public func textDocument(_ url: URL) throws -> TextDocumentItem {
     text: docContent)
 }
 
-public func createServer(channel: DataChannel, workspace: URL, documents: [URL], openDocuments: Bool = false) async throws -> RestartingServer<JSONRPCServer> {
-  let jsonServer = JSONRPCServer(dataChannel: channel)
+public func createServer(channel: DataChannel, workspace: URL, documents: [URL], openDocuments: Bool = false) async throws -> RestartingServer<JSONRPCServerConnection> {
+  let jsonServer = JSONRPCServerConnection(dataChannel: channel)
   // let workspaceDirectory = docURL.deletingLastPathComponent()
 
   let initializationProvider: InitializingServer.InitializeParamsProvider = {
@@ -75,7 +75,7 @@ public func createServer(channel: DataChannel, workspace: URL, documents: [URL],
 
   if openDocuments {
     for doc in docs.values {
-      let docParams = TextDocumentDidOpenParams(textDocument: doc)
+      let docParams = DidOpenTextDocumentParams(textDocument: doc)
       try await server.textDocumentDidOpen(params: docParams)
     }
   }

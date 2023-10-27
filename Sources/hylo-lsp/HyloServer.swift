@@ -15,10 +15,18 @@ enum BuildError : Error {
 
 
 public struct HyloNotificationHandler : NotificationHandler {
-  public let lsp: JSONRPCServer
+  public let lsp: JSONRPCClientConnection
   public let logger: Logger
   var documentProvider: DocumentProvider
   // var ast: AST { documentProvider.ast }
+
+  public func handleNotification(_ notification: ClientNotification) async {
+    let t0 = Date()
+    logger.debug("Begin handle notification: \(notification.method)")
+    await defaultNotificationDispatch(notification)
+    let t = Date().timeIntervalSince(t0)
+    logger.debug("Complete handle notification: \(notification.method), after \(Int(t*1000))ms")
+  }
 
   private func withErrorLogging(_ fn: () throws -> Void) {
     do {
@@ -48,23 +56,23 @@ public struct HyloNotificationHandler : NotificationHandler {
   }
 
 
-  public func textDocumentDidOpen(_ params: TextDocumentDidOpenParams) async {
+  public func textDocumentDidOpen(_ params: DidOpenTextDocumentParams) async {
     await documentProvider.registerDocument(params)
   }
 
-  public func textDocumentDidChange(_ params: TextDocumentDidChangeParams) async {
+  public func textDocumentDidChange(_ params: DidChangeTextDocumentParams) async {
     await documentProvider.updateDocument(params)
   }
 
-  public func textDocumentDidClose(_ params: TextDocumentDidCloseParams) async {
+  public func textDocumentDidClose(_ params: DidCloseTextDocumentParams) async {
     await documentProvider.unregisterDocument(params)
   }
 
-  public func textDocumentWillSave(_ params: TextDocumentWillSaveParams) async {
+  public func textDocumentWillSave(_ params: WillSaveTextDocumentParams) async {
 
   }
 
-  public func textDocumentDidSave(_ params: TextDocumentDidSaveParams) async {
+  public func textDocumentDidSave(_ params: DidSaveTextDocumentParams) async {
   }
 
   public func protocolCancelRequest(_ params: CancelParams) async {
@@ -108,7 +116,7 @@ public struct HyloNotificationHandler : NotificationHandler {
 
 
 public struct HyloRequestHandler : RequestHandler {
-  public let lsp: JSONRPCServer
+  public let lsp: JSONRPCClientConnection
   public let logger: Logger
 
   var documentProvider: DocumentProvider
@@ -117,18 +125,26 @@ public struct HyloRequestHandler : RequestHandler {
   // var initTask: Task<TypedProgram, Error>
 
 
-  public init(lsp: JSONRPCServer, logger: Logger, documentProvider: DocumentProvider) {
+  public init(lsp: JSONRPCClientConnection, logger: Logger, documentProvider: DocumentProvider) {
     self.lsp = lsp
     self.logger = logger
     self.documentProvider = documentProvider
   }
 
+  public func handleRequest(id: JSONId, request: ClientRequest) async {
+    let t0 = Date()
+    logger.debug("Begin handle request: \(request.method)")
+    await defaultRequestDispatch(id: id, request: request)
+    let t = Date().timeIntervalSince(t0)
+    logger.debug("Complete handle request: \(request.method), after \(Int(t*1000))ms")
+  }
 
-  public func initialize(_ params: InitializeParams) async -> Result<InitializationResponse, AnyJSONRPCResponseError> {
+
+  public func initialize(id: JSONId, params: InitializeParams) async -> Result<InitializationResponse, AnyJSONRPCResponseError> {
     return await documentProvider.initialize(params)
   }
 
-  public func shutdown() async {
+  public func shutdown(id: JSONId) async {
 
   }
 
@@ -157,7 +173,7 @@ public struct HyloRequestHandler : RequestHandler {
     return SourcePosition(line: position.line+1, column: position.character+1, in: f)
   }
 
-  public func definition(_ params: TextDocumentPositionParams, _ doc: AnalyzedDocument) async -> Result<DefinitionResponse, AnyJSONRPCResponseError> {
+  public func definition(id: JSONId, params: TextDocumentPositionParams, doc: AnalyzedDocument) async -> Result<DefinitionResponse, AnyJSONRPCResponseError> {
 
     guard let url = DocumentProvider.validateDocumentUrl(params.textDocument.uri) else {
       return .failure(JSONRPCResponseError(code: ErrorCodes.InvalidParams, message: "Invalid document uri: \(params.textDocument.uri)"))
@@ -272,9 +288,9 @@ public struct HyloRequestHandler : RequestHandler {
     return .success(nil)
   }
 
-  public func definition(_ params: TextDocumentPositionParams) async -> Result<DefinitionResponse, AnyJSONRPCResponseError> {
+  public func definition(id: JSONId, params: TextDocumentPositionParams) async -> Result<DefinitionResponse, AnyJSONRPCResponseError> {
     await withAnalyzedDocument(params.textDocument) { doc in
-      await definition(params, doc)
+      await definition(id: id, params: params, doc: doc)
     }
   }
 
@@ -300,7 +316,7 @@ public struct HyloRequestHandler : RequestHandler {
   }
 
 
-  public func documentSymbol(_ params: DocumentSymbolParams, ast: AST) async -> Result<DocumentSymbolResponse, AnyJSONRPCResponseError> {
+  public func documentSymbol(id: JSONId, params: DocumentSymbolParams, ast: AST) async -> Result<DocumentSymbolResponse, AnyJSONRPCResponseError> {
     let symbols = ast.listDocumentSymbols(params.textDocument.uri, logger: logger)
     if symbols.isEmpty {
       return .success(nil)
@@ -321,14 +337,14 @@ public struct HyloRequestHandler : RequestHandler {
   }
 
 
-  public func documentSymbol(_ params: DocumentSymbolParams) async -> Result<DocumentSymbolResponse, AnyJSONRPCResponseError> {
+  public func documentSymbol(id: JSONId, params: DocumentSymbolParams) async -> Result<DocumentSymbolResponse, AnyJSONRPCResponseError> {
 
     await withDocumentAST(params.textDocument) { ast in
-      await documentSymbol(params, ast: ast)
+      await documentSymbol(id: id, params: params, ast: ast)
     }
   }
 
-  public func diagnostics(_ params: DocumentDiagnosticParams) async -> Result<DocumentDiagnosticReport, AnyJSONRPCResponseError> {
+  public func diagnostics(id: JSONId, params: DocumentDiagnosticParams) async -> Result<DocumentDiagnosticReport, AnyJSONRPCResponseError> {
 
     let docResult = await documentProvider.getAnalyzedDocument(params.textDocument)
 
@@ -435,74 +451,49 @@ public struct HyloRequestHandler : RequestHandler {
 
   // https://code.visualstudio.com/api/language-extensions/semantic-highlight-guide
   // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_semanticTokens
-  public func semanticTokensFull(_ params: SemanticTokensParams) async -> Result<SemanticTokensResponse, AnyJSONRPCResponseError> {
+  public func semanticTokensFull(id: JSONId, params: SemanticTokensParams) async -> Result<SemanticTokensResponse, AnyJSONRPCResponseError> {
 
     await withDocumentAST(params.textDocument) { ast in
-      await semanticTokensFull(params, ast: ast)
+      await semanticTokensFull(id: id, params: params, ast: ast)
     }
   }
 
-  public func semanticTokensFull(_ params: SemanticTokensParams, ast: AST) async -> Result<SemanticTokensResponse, AnyJSONRPCResponseError> {
+  public func semanticTokensFull(id: JSONId, params: SemanticTokensParams, ast: AST) async -> Result<SemanticTokensResponse, AnyJSONRPCResponseError> {
     let tokens = ast.getSematicTokens(params.textDocument.uri, logger: logger)
     logger.debug("[\(params.textDocument.uri)] Return \(tokens.count) semantic tokens")
     return .success(SemanticTokens(tokens: tokens))
   }
 }
 
+public struct HyloErrorHandler : ErrorHandler {
+  let logger: Logger
+
+	public func internalError(_ error: Error) async {
+    logger.debug("LSP stream error: \(error)")
+  }
+}
 
 public actor HyloServer {
-  let lsp: JSONRPCServer
+  let lsp: JSONRPCClientConnection
   private let logger: Logger
   private var documentProvider: DocumentProvider
-  private let requestHandler: HyloRequestHandler
-  private let notificationHandler: HyloNotificationHandler
+  private let dispatcher: EventDispatcher
 
   public static let disableLogging = if let disableLogging = ProcessInfo.processInfo.environment["HYLO_LSP_DISABLE_LOGGING"] { !disableLogging.isEmpty } else { false }
 
   public init(_ dataChannel: DataChannel, logger: Logger) {
     self.logger = logger
-    lsp = JSONRPCServer(dataChannel)
+    lsp = JSONRPCClientConnection(dataChannel)
     self.documentProvider = DocumentProvider(lsp: lsp, logger: logger)
-    requestHandler = HyloRequestHandler(lsp: lsp, logger: logger, documentProvider: documentProvider)
-    notificationHandler = HyloNotificationHandler(lsp: lsp, logger: logger, documentProvider: documentProvider)
+    let requestHandler = HyloRequestHandler(lsp: lsp, logger: logger, documentProvider: documentProvider)
+    let notificationHandler = HyloNotificationHandler(lsp: lsp, logger: logger, documentProvider: documentProvider)
+    let errorHandler = HyloErrorHandler(logger: logger)
+
+    dispatcher = EventDispatcher(connection: lsp, requestHandler: requestHandler, notificationHandler: notificationHandler, errorHandler: errorHandler)
   }
 
   public func run() async {
     logger.debug("starting server")
-    await monitorEvents()
-  }
-
-  func monitorEvents() async {
-    for await event in await lsp.eventSequence {
-
-			switch event {
-			case let .notification(notification):
-        await notificationHandler.handleNotificationWithProfiling(notification)
-			case let .request(request):
-        await requestHandler.handleRequestWithProfiling(request)
-			case let .error(error):
-        logger.debug("LSP stream error: \(error)")
-			}
-    }
-  }
-}
-
-extension NotificationHandler {
-  func handleNotificationWithProfiling(_ notification: ClientNotification) async {
-    let t0 = Date()
-    logger.debug("Begin handle notification: \(notification.method)")
-    await handleNotification(notification)
-    let t = Date().timeIntervalSince(t0)
-    logger.debug("Complete handle notification: \(notification.method), after \(Int(t*1000))ms")
-  }
-}
-
-extension RequestHandler {
-  func handleRequestWithProfiling(_ request: ClientRequest) async {
-    let t0 = Date()
-    logger.debug("Begin handle request: \(request.method)")
-    await handleRequest(request)
-    let t = Date().timeIntervalSince(t0)
-    logger.debug("Complete handle request: \(request.method), after \(Int(t*1000))ms")
+    await dispatcher.run()
   }
 }

@@ -165,7 +165,7 @@ public func cliLink(uri: String, range: LSPRange) -> String {
 }
 
 func initServer(workspace: String? = nil, documents: [URL], openDocuments: Bool, logger: Logger) async throws -> RestartingServer<
-  JSONRPCServer
+  JSONRPCServerConnection
 > {
   let fm = FileManager.default
   let workspace = URL.init(fileURLWithPath: workspace ?? fm.currentDirectoryPath)
@@ -233,7 +233,7 @@ func withDiagnosticsCheck<T>(_ fn: () async throws -> T) async throws -> T {
 }
 
 protocol DocumentCommand : AsyncParsableCommand {
-  func process(doc: DocumentLocation, using server: Server) async throws
+  func process(doc: DocumentLocation, using server: ServerConnection) async throws
 }
 
 extension DocumentCommand {
@@ -245,7 +245,7 @@ extension DocumentCommand {
 
     for doc in docs {
       let td = try textDocument(doc.url)
-      let docParams = TextDocumentDidOpenParams(textDocument: td)
+      let docParams = DidOpenTextDocumentParams(textDocument: td)
       try await server.textDocumentDidOpen(params: docParams)
       try await self.process(doc: doc, using: server)
     }
@@ -258,7 +258,7 @@ extension HyloLspCommand {
   struct Symbols : DocumentCommand {
     @OptionGroup var options: Options
 
-    func process(doc: DocumentLocation, using server: Server) async throws {
+    func process(doc: DocumentLocation, using server: ServerConnection) async throws {
 
       let params = DocumentSymbolParams(textDocument: TextDocumentIdentifier(uri: doc.uri))
 
@@ -318,7 +318,7 @@ extension HyloLspCommand {
   struct Definition : DocumentCommand {
     @OptionGroup var options: Options
 
-    func process(doc: DocumentLocation, using server: Server) async throws {
+    func process(doc: DocumentLocation, using server: ServerConnection) async throws {
 
       guard let pos = doc.position() else {
         throw ValidationError("Invalid position")
@@ -366,7 +366,7 @@ extension HyloLspCommand {
   struct Diagnostics : DocumentCommand {
     @OptionGroup var options: Options
 
-    func process(doc: DocumentLocation, using server: Server) async throws {
+    func process(doc: DocumentLocation, using server: ServerConnection) async throws {
       let params = DocumentDiagnosticParams(textDocument: TextDocumentIdentifier(uri: doc.uri))
       let report = try await server.diagnostics(params: params)
       for d in report.items ?? [] {
@@ -397,7 +397,7 @@ extension HyloLspCommand {
     func validate() throws {
     }
 
-    func process(doc: DocumentLocation, using server: Server) async throws {
+    func process(doc: DocumentLocation, using server: ServerConnection) async throws {
       if let pipe = options.pipe {
         print("starting client witn named pipe: \(pipe)")
         // let fileManager = FileManager.default
