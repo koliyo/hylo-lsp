@@ -4,11 +4,17 @@
 import PackageDescription
 import Foundation
 
-let commonCompileSetting: SwiftSetting =
-	.unsafeFlags([])
+let commonCompileSettings: [SwiftSetting] = [
+	// .unsafeFlags(["-warnings-as-errors"])
+	.enableExperimentalFeature("StrictConcurrency")
 	// .unsafeFlags(["-strict-concurrency=complete", "-warn-concurrency"])
+]
 
-
+let toolCompileSettings = commonCompileSettings + [
+  .unsafeFlags(["-parse-as-library"],
+    .when(platforms: [ .windows ]
+  ))
+]
 
 let package = Package(
   name: "hylo-lsp",
@@ -46,7 +52,6 @@ let package = Package(
 
     .target(
       name: "hylo-lsp",
-      // dependencies: ["LanguageServerProtocol", "LanguageClient"],
       dependencies: [
         .product(name: "ArgumentParser", package: "swift-argument-parser"),
         .product(name: "Logging", package: "swift-log"),
@@ -61,16 +66,11 @@ let package = Package(
         // .product(name: "ProcessEnv", package: "ProcessEnv", condition: .when(platforms: [.macOS])),
       ],
       path: "Sources/hylo-lsp",
-      // exclude: ["hylo-lsp-server/main.swift"]
-      swiftSettings: [
-        commonCompileSetting,
-      ]
+      swiftSettings: commonCompileSettings
     ),
-
 
     .executableTarget(
       name: "hylo-lsp-server",
-      // dependencies: ["LanguageServerProtocol", "LanguageClient"],
       dependencies: [
         "hylo-lsp",
         .product(
@@ -88,21 +88,12 @@ let package = Package(
         // "JSONRPC-DataChannel-StdioPipe",
         // .product(name: "ProcessEnv", package: "ProcessEnv", condition: .when(platforms: [.macOS])),
       ],
-      // dependencies: ["LanguageServerProtocol", "UniSocket"],
       path: "Sources/hylo-lsp-server",
-      swiftSettings: [
-        commonCompileSetting,
-        .unsafeFlags(["-parse-as-library"],
-          .when(platforms: [
-            .windows,
-          ])
-        )
-      ]
+      swiftSettings: toolCompileSettings
     ),
 
     .executableTarget(
       name: "hylo-lsp-client",
-      // dependencies: ["LanguageServerProtocol", "LanguageClient"],
       dependencies: [
         // .product(name: "ConsoleKit", package: "console-kit"),
         "hylo-lsp",
@@ -123,15 +114,7 @@ let package = Package(
       ],
       // dependencies: ["LanguageServerProtocol", "UniSocket"],
       path: "Sources/hylo-lsp-client",
-      swiftSettings: [
-        commonCompileSetting,
-        .unsafeFlags(["-parse-as-library"],
-          .when(platforms: [
-            .windows,
-          ])
-        )
-      ]
-
+      swiftSettings: toolCompileSettings
     ),
 
     .testTarget(
