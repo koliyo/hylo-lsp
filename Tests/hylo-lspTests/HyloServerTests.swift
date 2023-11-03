@@ -1,7 +1,7 @@
 import XCTest
 import JSONRPC
 import LanguageServerProtocol
-import LanguageServerProtocol_Server
+import LSPServer
 import Logging
 import Puppy
 
