@@ -1,6 +1,6 @@
 import LanguageServerProtocol
-import Core
-import FrontEnd
+@preconcurrency import Core
+@preconcurrency import FrontEnd
 import Foundation
 
 

@@ -3,7 +3,7 @@ import Foundation
 import LanguageServerProtocol
 import LSPServer
 import HyloModule
-import Core
+@preconcurrency import Core
 import FrontEnd
 import Logging
 

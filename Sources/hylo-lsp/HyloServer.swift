@@ -4,7 +4,7 @@ import LSPServer
 import Foundation
 import Semaphore
 
-import Core
+@preconcurrency import Core
 import FrontEnd
 import HyloModule
 import Logging
