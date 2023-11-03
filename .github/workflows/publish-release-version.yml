@@ -60,7 +60,7 @@ jobs:
         ls -l release-artifacts
 
     - name: Extract version changelog
-      run: echo "RELEASE_CHANGELOG=$(./extract_version_changelog.sh ${{ github.ref_name }})" >> $GITHUB_ENV
+      run: ./extract_version_changelog.sh ${{ github.ref_name }} >> version_changelog.txt
 
     - name: Release
       uses: softprops/action-gh-release@v1
@@ -68,4 +68,4 @@ jobs:
         files: |
           LICENSE
           release-artifacts/*
-        body: ${{ env.RELEASE_CHANGELOG }}
+        body_path: version_changelog.txt
