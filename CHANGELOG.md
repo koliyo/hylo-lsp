@@ -2,6 +2,10 @@
 
 All notable changes to the "hylo-lsp" extension will be documented in this file.
 
+## v0.6.9
+
+Add shutdown handling
+
 ## v0.6.8
 
 Fix definition lookup from function call
