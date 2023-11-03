@@ -2,6 +2,10 @@
 
 All notable changes to the "hylo-lsp" extension will be documented in this file.
 
+## v0.6.8
+
+Fix definition lookup from function call
+
 ## v0.6.7
 
 Bump hylo version: 67e621c07ee9ddf9ff8476d98a5423fa1a23c80b
