@@ -64,7 +64,7 @@ jobs:
         username: ${{ github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build
+    - name: Build (${{ inputs.build-type }})
       uses: devcontainers/ci@v0.3
       with:
         imageName: ghcr.io/koliyo/hylo-lsp-swift-devcontainer
@@ -184,7 +184,7 @@ jobs:
         xcopy HyloLibC.lib c:\program" "files\microsoft" "visual" "studio\2022\enterprise\vc\tools\msvc\${{ env.VCToolsVersion }}\lib\x64\
       working-directory: hylo
 
-    - name: Build (Release)
+    - name: Build (${{ inputs.build-type }})
       id: build
       continue-on-error: true
       run: |
