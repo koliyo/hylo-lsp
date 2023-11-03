@@ -13,6 +13,7 @@ extension AST {
       diagnostics: &diagnostics)
 
     assert(isCoreModuleLoaded)
+    self.coreTraits = .init(self)
   }
 
   internal init(libraryRoot: URL) throws {
