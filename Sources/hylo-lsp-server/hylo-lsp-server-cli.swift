@@ -96,9 +96,11 @@ struct HyloLspCommand: AsyncParsableCommand {
 
     func run() async throws {
 
+        #if !os(Windows)
         // Force line buffering
         setvbuf(stdout, nil, _IOLBF, 0)
         setvbuf(stderr, nil, _IOLBF, 0)
+        #endif
 
         let logFileURL = URL(fileURLWithPath: logFile)
         // let fileLogger = try FileLogging(to: logFileURL)
