@@ -1,4 +1,4 @@
-// swift-tools-version: 5.8
+// swift-tools-version: 5.9
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -28,6 +28,7 @@ let package = Package(
     .library(name: "hylo-lsp", targets: ["hylo-lsp"]),
     .executable(name: "hylo-lsp-server", targets: ["hylo-lsp-server"]),
     .executable(name: "hylo-lsp-client", targets: ["hylo-lsp-client"]),
+    .plugin(name: "CustomCompilePlugin", targets: ["CustomCompilePlugin"]),
   ],
   dependencies: [
     .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.1.4"),
@@ -89,7 +90,8 @@ let package = Package(
         // .product(name: "ProcessEnv", package: "ProcessEnv", condition: .when(platforms: [.macOS])),
       ],
       path: "Sources/hylo-lsp-server",
-      swiftSettings: toolCompileSettings
+      swiftSettings: toolCompileSettings,
+      plugins: ["CustomCompilePlugin"]
     ),
 
     .executableTarget(
@@ -119,6 +121,18 @@ let package = Package(
 
     .testTarget(
       name: "hylo-lspTests",
-      dependencies: ["hylo-lsp-server"]),
+      dependencies: ["hylo-lsp-server"]
+    ),
+
+    .plugin(
+      name: "CustomCompilePlugin",
+      // capability: .buildTool()
+      capability: .command(
+        intent: .custom(verb: "Foo", description: "Bar"),
+        permissions: [
+          PluginPermission.writeToPackageDirectory(reason: "reason")
+        ]
+      )
+    ),
   ]
 )
