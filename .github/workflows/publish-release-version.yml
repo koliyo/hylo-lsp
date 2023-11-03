@@ -59,9 +59,13 @@ jobs:
         # zip release-artifacts/hylo-lsp-client-windows-x64.zip hylo-lsp-windows-x64/hylo-lsp-client.exe ref
         ls -l release-artifacts
 
+    - name: Extract version changelog
+      run: echo "RELEASE_CHANGELOG=$(./extract_version_changelog.sh ${{ github.ref_name }})" >> $GITHUB_ENV
+
     - name: Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
           LICENSE
           release-artifacts/*
+        body: ${{ env.RELEASE_CHANGELOG }}
