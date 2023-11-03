@@ -2,7 +2,7 @@ import Foundation
 import LanguageClient
 // import ProcessEnv
 import LanguageServerProtocol
-import LanguageServerProtocol_Client
+import LSPClient
 import JSONRPC
 #if !os(Windows)
 import UniSocket
@@ -466,8 +466,23 @@ extension HyloLspCommand {
       try socket.bind()
       try socket.listen()
       print("Created socket pipe: \(pipe)")
-      _ = try socket.accept()
-      print("LSP attached")
+      let client = try socket.accept()
+      print("LSP server attached")
+      client.timeout = (connect: 5, read: nil, write: 5)
+      let clientChannel = DataChannel(socket: client)
+
+      let fm = FileManager.default
+      let workspace = URL.init(fileURLWithPath: fm.currentDirectoryPath)
+      let server = try await createServer(channel: clientChannel, workspace: workspace, documents: [])
+
+      let td = try textDocument(URL.init(fileURLWithPath: "hylo/Examples/factorial.hylo"))
+      let docParams = DidOpenTextDocumentParams(textDocument: td)
+      try await server.textDocumentDidOpen(params: docParams)
+
+      try await server.setTrace(params: SetTraceParams(value: .off))
+      print("traced")
+      try await server.shutdownAndExit()
+      print("Sent shutdown")
       // client.timeout = (connect: 5, read: nil, write: 5)
       // let clientChannel = DataChannel(socket: client)
       // await RunHyloClientTests(channel: clientChannel, docURL: docURL)

@@ -1,7 +1,7 @@
 import JSONRPC
 import Foundation
 import LanguageServerProtocol
-import LanguageServerProtocol_Server
+import LSPServer
 import HyloModule
 import Core
 import FrontEnd

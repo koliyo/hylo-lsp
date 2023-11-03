@@ -1,7 +1,8 @@
 import JSONRPC
 import LanguageServerProtocol
-import LanguageServerProtocol_Server
+import LSPServer
 import Foundation
+import Semaphore
 
 import Core
 import FrontEnd
@@ -18,7 +19,11 @@ public struct HyloNotificationHandler : NotificationHandler {
   public let connection: JSONRPCClientConnection
   public let logger: Logger
   var documentProvider: DocumentProvider
-  // var ast: AST { documentProvider.ast }
+  var exitSemaphore: AsyncSemaphore
+
+	public func internalError(_ error: Error) async {
+    logger.debug("LSP stream error: \(error)")
+  }
 
   public func handleNotification(_ notification: ClientNotification) async {
     let t0 = Date()
@@ -52,7 +57,8 @@ public struct HyloNotificationHandler : NotificationHandler {
   }
 
   public func exit() async {
-
+    await connection.stop()
+    exitSemaphore.signal()
   }
 
 
@@ -114,8 +120,7 @@ public struct HyloNotificationHandler : NotificationHandler {
 
 }
 
-
-public struct HyloRequestHandler : RequestHandler {
+public struct HyloRequestHandler : RequestHandler, Sendable {
   public let connection: JSONRPCClientConnection
   public let logger: Logger
 
@@ -124,11 +129,14 @@ public struct HyloRequestHandler : RequestHandler {
   // var program: TypedProgram? { documentProvider.program }
   // var initTask: Task<TypedProgram, Error>
 
-
   public init(connection: JSONRPCClientConnection, logger: Logger, documentProvider: DocumentProvider) {
     self.connection = connection
     self.logger = logger
     self.documentProvider = documentProvider
+  }
+
+	public func internalError(_ error: Error) async {
+    logger.debug("LSP stream error: \(error)")
   }
 
   public func handleRequest(id: JSONId, request: ClientRequest) async {
@@ -145,7 +153,6 @@ public struct HyloRequestHandler : RequestHandler {
   }
 
   public func shutdown(id: JSONId) async {
-
   }
 
   func makeSourcePosition(url: URL, position: Position) -> SourcePosition? {
@@ -339,11 +346,13 @@ public struct HyloErrorHandler : ErrorHandler {
   }
 }
 
+
 public actor HyloServer {
   let connection: JSONRPCClientConnection
   private let logger: Logger
   private var documentProvider: DocumentProvider
   private let dispatcher: EventDispatcher
+  var exitSemaphore: AsyncSemaphore
 
   public static let disableLogging = if let disableLogging = ProcessInfo.processInfo.environment["HYLO_LSP_DISABLE_LOGGING"] { !disableLogging.isEmpty } else { false }
 
@@ -352,7 +361,10 @@ public actor HyloServer {
     connection = JSONRPCClientConnection(dataChannel)
     self.documentProvider = DocumentProvider(connection: connection, logger: logger)
     let requestHandler = HyloRequestHandler(connection: connection, logger: logger, documentProvider: documentProvider)
-    let notificationHandler = HyloNotificationHandler(connection: connection, logger: logger, documentProvider: documentProvider)
+
+    exitSemaphore = AsyncSemaphore(value: 0)
+
+    let notificationHandler = HyloNotificationHandler(connection: connection, logger: logger, documentProvider: documentProvider, exitSemaphore: exitSemaphore)
     let errorHandler = HyloErrorHandler(logger: logger)
 
     dispatcher = EventDispatcher(connection: connection, requestHandler: requestHandler, notificationHandler: notificationHandler, errorHandler: errorHandler)
@@ -361,5 +373,8 @@ public actor HyloServer {
   public func run() async {
     logger.debug("starting server")
     await dispatcher.run()
+    logger.debug("dispatcher completed")
+    await exitSemaphore.wait()
+    logger.debug("exit")
   }
 }

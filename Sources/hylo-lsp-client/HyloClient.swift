@@ -3,7 +3,7 @@ import LanguageClient
 // import ProcessEnv
 import LanguageClient
 import LanguageServerProtocol
-import LanguageServerProtocol_Client
+import LSPClient
 import JSONRPC
 
 import Core

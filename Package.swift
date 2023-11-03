@@ -30,6 +30,7 @@ let package = Package(
     .executable(name: "hylo-lsp-client", targets: ["hylo-lsp-client"]),
   ],
   dependencies: [
+    .package(url: "https://github.com/groue/Semaphore", from: "0.0.8"),
     .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.1.4"),
     .package(url: "https://github.com/apple/swift-log.git", from: "1.5.0"),
     // .package(url: "https://github.com/crspybits/swift-log-file.git", from: "0.1.0"),
@@ -53,12 +54,13 @@ let package = Package(
     .target(
       name: "hylo-lsp",
       dependencies: [
+        "Semaphore",
         .product(name: "ArgumentParser", package: "swift-argument-parser"),
         .product(name: "Logging", package: "swift-log"),
         // .product(name: "FileLogging", package: "swift-log-file"),
         "Puppy",
         .product(name: "LanguageServerProtocol", package: "LanguageServerProtocol"),
-        .product(name: "LanguageServerProtocol-Server", package: "LanguageServerProtocol"),
+        .product(name: "LSPServer", package: "LanguageServerProtocol"),
         // "JSONRPC-DataChannel-UniSocket",
         // "JSONRPC-DataChannel-Actor",
         .product(name: "HyloFrontEnd", package: "hylo"),
