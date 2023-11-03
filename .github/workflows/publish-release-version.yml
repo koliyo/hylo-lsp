@@ -41,6 +41,7 @@ jobs:
     - name: Package Hylo release artifacts
       run: |
         set -eo pipefail
+        git -C hylo rev-parse HEAD > ref
         cp -Rp hylo/Library/Hylo hylo-stdlib
         mkdir -p release-artifacts
         # tar -zcvf release-artifacts/hylo-stdlib.tar.gz hylo-stdlib
