@@ -83,13 +83,13 @@ extension Document {
   }
 }
 
-public struct DocumentProfiling {
+public struct DocumentProfiling : Sendable {
   public let stdlibParsing: TimeInterval
   public let ASTParsing: TimeInterval
   public let typeChecking: TimeInterval
 }
 
-public struct AnalyzedDocument {
+public struct AnalyzedDocument : Sendable {
   public let uri: DocumentUri
   public let program: TypedProgram
   public let ast: AST
