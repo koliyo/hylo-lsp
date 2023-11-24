@@ -4,7 +4,7 @@ import Foundation
 
 extension AST {
   internal init(sourceFiles: [SourceFile]) throws {
-    self.init()
+    self.init(for: CompilerConfiguration())
     var diagnostics = DiagnosticSet()
     coreLibrary = try makeModule(
       "Hylo",

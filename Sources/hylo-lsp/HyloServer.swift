@@ -6,7 +6,6 @@ import Semaphore
 
 @preconcurrency import Core
 import FrontEnd
-import HyloModule
 import Logging
 
 enum BuildError : Error {

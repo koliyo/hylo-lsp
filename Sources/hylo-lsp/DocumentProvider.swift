@@ -2,7 +2,7 @@ import JSONRPC
 import Foundation
 import LanguageServerProtocol
 import LSPServer
-import HyloModule
+import StandardLibrary
 @preconcurrency import Core
 import FrontEnd
 import Logging
@@ -123,7 +123,7 @@ public actor DocumentProvider {
       return URL(fileURLWithPath: path)
     }
     else {
-      return HyloModule.standardLibrary
+      return StandardLibrary.standardLibrarySourceRoot
     }
   }
 
