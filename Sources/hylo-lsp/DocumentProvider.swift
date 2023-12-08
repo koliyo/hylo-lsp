@@ -1,7 +1,7 @@
 import JSONRPC
 import Foundation
 import LanguageServerProtocol
-import LSPServer
+import LanguageServer
 import StandardLibrary
 @preconcurrency import Core
 import FrontEnd
@@ -123,7 +123,7 @@ public actor DocumentProvider {
       return URL(fileURLWithPath: path)
     }
     else {
-      return StandardLibrary.standardLibrarySourceRoot
+      return StandardLibrary.freestandingLibrarySourceRoot
     }
   }
 
@@ -208,7 +208,7 @@ public actor DocumentProvider {
       // We need to replace stdlib files from in memory buffers if they have unsaved changes
       if let context = documents[file.url.absoluteString] {
         logger.debug("Replace content for stdlib source file: \(file.url)")
-        return SourceFile(filePath: file.url, withContent: context.doc.text)
+        return SourceFile(contents: context.doc.text, fileID: file.url)
       }
       else {
         return file
@@ -401,7 +401,7 @@ public actor DocumentProvider {
       }
       else {
         let url = URL.init(string: uri)!
-        sourceFiles = [SourceFile(filePath: url, withContent: context.doc.text)]
+        sourceFiles = [SourceFile(contents: context.doc.text, fileID: url)]
       }
 
       context.astTask = Task {

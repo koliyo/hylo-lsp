@@ -9,13 +9,16 @@
 	url = https://github.com/koliyo/hylo.git
 [submodule "swift-unisocket"]
 	path = swift-unisocket
-	url = https://github.com/seznam/swift-unisocket.git
+	url = https://github.com/koliyo/swift-unisocket.git
 [submodule "JSONRPC-DataChannel-UniSocket"]
 	path = JSONRPC-DataChannel-UniSocket
 	url = https://github.com/koliyo/JSONRPC-DataChannel-UniSocket.git
 [submodule "JSONRPC"]
 	path = JSONRPC
-	url = https://github.com/ChimeHQ/JSONRPC.git
+	url = https://github.com/koliyo/JSONRPC.git
 [submodule "hylo-vscode-extension"]
 	path = hylo-vscode-extension
 	url = https://github.com/koliyo/hylo-vscode-extension.git
+[submodule "Swifty-LLVM"]
+	path = Swifty-LLVM
+	url = https://github.com/koliyo/Swifty-LLVM.git

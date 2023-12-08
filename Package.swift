@@ -6,7 +6,7 @@ import Foundation
 
 let commonCompileSettings: [SwiftSetting] = [
 	// .unsafeFlags(["-warnings-as-errors"])
-	.enableExperimentalFeature("StrictConcurrency")
+	// .enableExperimentalFeature("StrictConcurrency")
 	// .unsafeFlags(["-strict-concurrency=complete", "-warn-concurrency"])
 ]
 
@@ -36,11 +36,11 @@ let package = Package(
     // .package(url: "https://github.com/crspybits/swift-log-file.git", from: "0.1.0"),
     .package(url: "https://github.com/sushichop/Puppy.git", from: "0.7.0"),
     // .package(url: "https://github.com/vapor/console-kit.git", from: "4.7.0"),
-    // .package(url: "https://github.com/ChimeHQ/LanguageServerProtocol", from: "0.10.0"),
+    .package(url: "https://github.com/ChimeHQ/LanguageServer", branch: "main"),
     // .package(url: "https://github.com/ChimeHQ/LanguageClient", from: "0.6.0"),
     // .package(url: "https://github.com/ChimeHQ/ProcessEnv", from: "1.0.0"),
     // .package(url: "https://github.com/seznam/swift-unisocket", from: "0.14.0"),
-    .package(path: "./LanguageServerProtocol"),
+    // .package(path: "./LanguageServerProtocol"),
     .package(path: "./LanguageClient"),
     // .package(name: "UniSocket", path: "./swift-unisocket"),
     // .package(path: "./swift-unisocket"),
@@ -59,8 +59,7 @@ let package = Package(
         .product(name: "Logging", package: "swift-log"),
         // .product(name: "FileLogging", package: "swift-log-file"),
         "Puppy",
-        .product(name: "LanguageServerProtocol", package: "LanguageServerProtocol"),
-        .product(name: "LSPServer", package: "LanguageServerProtocol"),
+        "LanguageServer",
         // "JSONRPC-DataChannel-UniSocket",
         // "JSONRPC-DataChannel-Actor",
         .product(name: "HyloFrontEnd", package: "hylo"),

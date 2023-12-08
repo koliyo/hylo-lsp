@@ -42,7 +42,7 @@ jobs:
       run: |
         set -eo pipefail
         git -C hylo rev-parse HEAD > ref
-        cp -Rp hylo/Library/Hylo hylo-stdlib
+        cp -Rp hylo/StandardLibrary/Sources hylo-stdlib
         mkdir -p release-artifacts
         # tar -zcvf release-artifacts/hylo-stdlib.tar.gz hylo-stdlib
         zip -r release-artifacts/hylo-stdlib.zip hylo-stdlib ref

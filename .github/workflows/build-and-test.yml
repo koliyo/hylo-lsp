@@ -60,5 +60,5 @@ jobs:
   #       name: hylo-lsp-artifacts-common
   #       path: |
   #         LICENSE
-  #         hylo/Library/Hylo
+  #         hylo/StandardLibrary/Sources
 

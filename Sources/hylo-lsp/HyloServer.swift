@@ -1,6 +1,6 @@
 import JSONRPC
 import LanguageServerProtocol
-import LSPServer
+import LanguageServer
 import Foundation
 import Semaphore
 
