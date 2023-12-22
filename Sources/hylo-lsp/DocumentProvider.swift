@@ -255,6 +255,7 @@ public actor DocumentProvider {
     let p = try TypedProgram(
     annotating: ScopedProgram(ast), inParallel: !compileSequentially,
     reportingDiagnosticsTo: &diagnostics,
+    throwOnError: false,
     tracingInferenceIf: nil)
 
     let typeCheckTime = Date().timeIntervalSince(t0)
