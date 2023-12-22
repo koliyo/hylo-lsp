@@ -1,9 +1,3 @@
-[submodule "LanguageClient"]
-	path = LanguageClient
-	url = https://github.com/koliyo/LanguageClient.git
-[submodule "LanguageServerProtocol"]
-	path = LanguageServerProtocol
-	url = https://github.com/koliyo/LanguageServerProtocol.git
 [submodule "hylo"]
 	path = hylo
 	url = https://github.com/koliyo/hylo.git
@@ -13,12 +7,6 @@
 [submodule "JSONRPC-DataChannel-UniSocket"]
 	path = JSONRPC-DataChannel-UniSocket
 	url = https://github.com/koliyo/JSONRPC-DataChannel-UniSocket.git
-[submodule "JSONRPC"]
-	path = JSONRPC
-	url = https://github.com/koliyo/JSONRPC.git
 [submodule "hylo-vscode-extension"]
 	path = hylo-vscode-extension
 	url = https://github.com/koliyo/hylo-vscode-extension.git
-[submodule "Swifty-LLVM"]
-	path = Swifty-LLVM
-	url = https://github.com/koliyo/Swifty-LLVM.git

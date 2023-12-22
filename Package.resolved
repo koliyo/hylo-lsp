@@ -46,6 +46,15 @@
       }
     },
     {
+      "identity" : "languageclient",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/ChimeHQ/LanguageClient",
+      "state" : {
+        "revision" : "6e5971905edd8068b30a986e7e99910381a9a748",
+        "version" : "0.7.0"
+      }
+    },
+    {
       "identity" : "languageserver",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/ChimeHQ/LanguageServer",
