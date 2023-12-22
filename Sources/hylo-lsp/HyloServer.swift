@@ -1,11 +1,8 @@
 import JSONRPC
-import LanguageServerProtocol
 import LanguageServer
 import Foundation
 import Semaphore
 
-@preconcurrency import Core
-import FrontEnd
 import Logging
 
 public struct HyloErrorHandler : ErrorHandler {
