@@ -45,9 +45,6 @@ struct Options: ParsableArguments {
     // @Flag(help: "Named pipe transport")
     // var pipe: Bool = false
 
-    @Option(help: "Named pipe transport")
-    var pipe: String?
-
     @Option(help: "Log level")
     var log: Logger.Level = Logger.Level.debug
 
@@ -398,43 +395,19 @@ extension HyloLspCommand {
     }
 
     func process(doc: DocumentLocation, using server: ServerConnection) async throws {
-      if let pipe = options.pipe {
-        print("starting client witn named pipe: \(pipe)")
-        // let fileManager = FileManager.default
 
-        // // Check if file exists
-        // if fileManager.fileExists(atPath: pipe) {
-        //     // Delete file
-        //     print("delete existing socket: \(pipe)")
-        //     try fileManager.removeItem(atPath: pipe)
-        // }
+      let params = SemanticTokensParams(textDocument: TextDocumentIdentifier(uri: doc.uri))
+      if let tokensData = try await server.semanticTokensFull(params: params) {
+        var tokens = tokensData.decode()
 
-        // let socket = try UniSocket(type: .local, peer: pipe)
-        // try socket.bind()
-        // try socket.listen()
-        // let client = try socket.accept()
-        // print("lsp attached")
-        // client.timeout = (connect: 5, read: nil, write: 5)
-        // let clientChannel = DataChannel(socket: client)
-        // await RunHyloClientTests(channel: clientChannel, docURL: docURL)
-      }
-      else {
-
-        let params = SemanticTokensParams(textDocument: TextDocumentIdentifier(uri: doc.uri))
-        if let tokensData = try await server.semanticTokensFull(params: params) {
-          var tokens = tokensData.decode()
-
-          if let line = doc.line {
-            tokens = tokens.filter { $0.line+1 == line }
-          }
-
-          for t in tokens {
-            let type = TokenType(rawValue: t.type)!
-            print("line: \(t.line+1), col: \(t.char+1), len: \(t.length), type: \(type), modifiers: \(t.modifiers)")
-          }
+        if let line = doc.line {
+          tokens = tokens.filter { $0.line+1 == line }
         }
 
-
+        for t in tokens {
+          let type = TokenType(rawValue: t.type)!
+          print("line: \(t.line+1), col: \(t.char+1), len: \(t.length), type: \(type), modifiers: \(t.modifiers)")
+        }
       }
     }
 
