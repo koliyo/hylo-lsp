@@ -11,6 +11,8 @@ import JSONRPC_DataChannel_UniSocket
 import ArgumentParser
 import Logging
 import hylo_lsp
+import Puppy
+import SwiftLogConsoleColors
 
 import Core
 import FrontEnd
@@ -234,6 +236,21 @@ protocol DocumentCommand : AsyncParsableCommand {
 }
 
 extension DocumentCommand {
+
+  func logHandlerFactory(_ label: String) -> LogHandler {
+    if HyloServer.disableLogging {
+      return NullLogHandler(label: label)
+    }
+
+    return ColorStreamLogHandler.standardOutput(label: label, logIconType: .rainbow)
+  }
+
+  func makeLogger(_ options: Options) -> Logger {
+    var logger = Logger(label: loggerLabel) { logHandlerFactory($0) }
+    logger.logLevel = options.log
+    return logger
+  }
+
   func processDocuments(_ docs: [String], openDocuments: Bool = true, logger: Logger) async throws {
     let docs = try docs.map { try Options.parseDocument($0) }
 
@@ -281,10 +298,10 @@ extension HyloLspCommand {
       }
     }
 
+
+
     func run() async throws {
-      var logger = Logger(label: loggerLabel)
-      logger.logLevel = options.log
-      try await processDocuments(options.documents, logger: logger)
+      try await processDocuments(options.documents, logger: makeLogger(options))
     }
 
     func documentSymbol(_ s: SymbolInformation) -> DocumentSymbol {
@@ -342,9 +359,7 @@ extension HyloLspCommand {
     }
 
     func run() async throws {
-      var logger = Logger(label: loggerLabel)
-      logger.logLevel = options.log
-      try await processDocuments(options.documents, logger: logger)
+      try await processDocuments(options.documents, logger: makeLogger(options))
     }
 
     func locationLink(_ l: Location) -> LocationLink {
@@ -378,9 +393,7 @@ extension HyloLspCommand {
     }
 
     func run() async throws {
-      var logger = Logger(label: loggerLabel)
-      logger.logLevel = options.log
-      try await processDocuments(options.documents, logger: logger)
+      try await processDocuments(options.documents, logger: makeLogger(options))
     }
 
   }
@@ -412,9 +425,7 @@ extension HyloLspCommand {
     }
 
     func run() async throws {
-      var logger = Logger(label: loggerLabel)
-      logger.logLevel = options.log
-      try await processDocuments(options.documents, logger: logger)
+      try await processDocuments(options.documents, logger: makeLogger(options))
     }
   }
 

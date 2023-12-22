@@ -136,6 +136,15 @@
       }
     },
     {
+      "identity" : "swift-log-console-colors",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/nneuberger1/swift-log-console-colors.git",
+      "state" : {
+        "revision" : "510bfc6ef5d656ea450497c4c2b50e0cd0240403",
+        "version" : "1.0.3"
+      }
+    },
+    {
       "identity" : "swifty-llvm",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/hylo-lang/Swifty-LLVM",
