@@ -151,6 +151,7 @@ struct HyloLspCommand: AsyncParsableCommand {
           Diagnostics.self,
           Definition.self,
           Symbols.self,
+          Completion.self,
           Pipe.self,
         ],
         defaultSubcommand: nil)
@@ -422,6 +423,31 @@ extension HyloLspCommand {
           print("line: \(t.line+1), col: \(t.char+1), len: \(t.length), type: \(type), modifiers: \(t.modifiers)")
         }
       }
+    }
+
+    func run() async throws {
+      try await processDocuments(options.documents, logger: makeLogger(options))
+    }
+  }
+
+  struct Completion : DocumentCommand {
+    @OptionGroup var options: Options
+
+    // @Option(help: "Specific row (1-based row counting)")
+    // var row: Int?
+
+    func validate() throws {
+    }
+
+    func process(doc: DocumentLocation, using server: ServerConnection) async throws {
+
+      guard let pos = doc.position() else {
+        throw ValidationError("Invalid position")
+      }
+
+      let params = CompletionParams(uri: doc.uri, position: pos, triggerKind: .invoked, triggerCharacter: nil)
+
+      let completion = try await server.completion(params: params)
     }
 
     func run() async throws {

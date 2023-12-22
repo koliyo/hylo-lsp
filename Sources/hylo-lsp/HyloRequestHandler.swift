@@ -44,6 +44,35 @@ public struct HyloRequestHandler : RequestHandler, Sendable {
   public func shutdown(id: JSONId) async {
   }
 
+
+	func completion(id: JSONId, params: CompletionParams, doc: AnalyzedDocument) async -> Response<CompletionResponse> {
+    guard let p = makeSourcePosition(uri: params.textDocument.uri, position: params.position) else {
+      return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Invalid document uri: \(params.textDocument.uri)"))
+    }
+
+    let resolver = CompletionResolver(ast: doc.ast, program: doc.program, logger: logger)
+
+    if let response = resolver.resolve(p) {
+      return .success(response)
+    }
+
+    return .success(nil)
+  }
+
+	public func completion(id: JSONId, params: CompletionParams) async -> Response<CompletionResponse> {
+    return await withAnalyzedDocument(params.textDocument) { doc in
+      await completion(id: id, params: params, doc: doc)
+    }
+  }
+
+  func makeSourcePosition(uri: DocumentUri, position: Position) -> SourcePosition? {
+    guard let url = DocumentProvider.validateDocumentUrl(uri) else {
+      return nil
+    }
+
+    return makeSourcePosition(url: url, position: position)
+  }
+
   func makeSourcePosition(url: URL, position: Position) -> SourcePosition? {
     guard let f = try? SourceFile(contentsOf: url) else {
       return nil
@@ -52,13 +81,10 @@ public struct HyloRequestHandler : RequestHandler, Sendable {
     return SourcePosition(line: position.line+1, column: position.character+1, in: f)
   }
 
-  public func definition(id: JSONId, params: TextDocumentPositionParams, doc: AnalyzedDocument) async -> Result<DefinitionResponse, AnyJSONRPCResponseError> {
 
-    guard let url = DocumentProvider.validateDocumentUrl(params.textDocument.uri) else {
-      return .failure(JSONRPCResponseError(code: ErrorCodes.InvalidParams, message: "Invalid document uri: \(params.textDocument.uri)"))
-    }
+  func definition(id: JSONId, params: TextDocumentPositionParams, doc: AnalyzedDocument) async -> Result<DefinitionResponse, AnyJSONRPCResponseError> {
 
-    guard let p = makeSourcePosition(url: url, position: params.position) else {
+    guard let p = makeSourcePosition(uri: params.textDocument.uri, position: params.position) else {
       return .failure(JSONRPCResponseError(code: ErrorCodes.InternalError, message: "Invalid document uri: \(params.textDocument.uri)"))
     }
 

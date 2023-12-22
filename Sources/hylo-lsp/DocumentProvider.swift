@@ -57,6 +57,7 @@ public actor DocumentProvider {
     // s.semanticTokensProvider = .optionA(SemanticTokensOptions(legend: tokenLedgend, range: .optionA(true), full: .optionA(true)))
     s.semanticTokensProvider = .optionB(SemanticTokensRegistrationOptions(documentSelector: [documentSelector], legend: tokenLedgend, range: .optionA(false), full: .optionA(true)))
     s.diagnosticProvider = .optionA(DiagnosticOptions(interFileDependencies: false, workspaceDiagnostics: false))
+    s.completionProvider = CompletionOptions(workDoneProgress: false, triggerCharacters: nil, allCommitCharacters: nil, resolveProvider: false, completionItem: nil)
 
     return s
   }
