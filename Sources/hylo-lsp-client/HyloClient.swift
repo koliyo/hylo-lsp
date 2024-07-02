@@ -3,10 +3,8 @@ import LanguageClient
 // import ProcessEnv
 import LanguageClient
 import LanguageServerProtocol
-import LSPClient
 import JSONRPC
 
-import Core
 import FrontEnd
 import hylo_lsp
 
@@ -76,7 +74,7 @@ public func createServer(channel: DataChannel, workspace: URL, documents: [URL],
   if openDocuments {
     for doc in docs.values {
       let docParams = DidOpenTextDocumentParams(textDocument: doc)
-      try await server.textDocumentDidOpen(params: docParams)
+      try await server.textDocumentDidOpen(docParams)
     }
   }
 

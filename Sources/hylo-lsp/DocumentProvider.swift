@@ -3,8 +3,7 @@ import Foundation
 import LanguageServerProtocol
 import LanguageServer
 import StandardLibrary
-@preconcurrency import Core
-import FrontEnd
+@preconcurrency import FrontEnd
 import Logging
 
 public protocol TextDocumentProtocol {

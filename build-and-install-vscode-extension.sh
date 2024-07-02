@@ -2,7 +2,6 @@
 
 set -ex
 
-# . ./setup-env.sh
 swift build -c release
 BUILD_DIR=$(swift build -c release --show-bin-path)
 DIST_DIR=hylo-vscode-extension/dist

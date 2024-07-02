@@ -4,8 +4,7 @@ import LanguageServer
 import Foundation
 import Semaphore
 
-@preconcurrency import Core
-import FrontEnd
+@preconcurrency import FrontEnd
 import Logging
 
 

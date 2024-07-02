@@ -1,8 +1,8 @@
 import LanguageServerProtocol
-import Core
+import FrontEnd
 
 public extension LanguageServerProtocol.DiagnosticSeverity {
-  init(_ level: Core.Diagnostic.Level) {
+  init(_ level: FrontEnd.Diagnostic.Level) {
     switch level {
     case .note:
       self = .information
@@ -15,7 +15,7 @@ public extension LanguageServerProtocol.DiagnosticSeverity {
 }
 
 public extension LanguageServerProtocol.Diagnostic {
-  init(_ diagnostic: Core.Diagnostic) {
+  init(_ diagnostic: FrontEnd.Diagnostic) {
     let relatedInformation = diagnostic.notes.map { note in
       DiagnosticRelatedInformation(location: Location(note.site), message: note.message)
     }

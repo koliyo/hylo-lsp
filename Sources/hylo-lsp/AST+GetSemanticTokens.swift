@@ -1,5 +1,4 @@
 import Foundation
-import Core
 import FrontEnd
 import LanguageServerProtocol
 import Logging
@@ -155,12 +154,7 @@ struct SemanticTokensWalker {
     addToken(range: attribute.name.site, type: .function)
 
     for a in attribute.arguments {
-      switch a {
-        case let .string(s):
-          addToken(range: s.site, type: .string)
-        case let .integer(i):
-          addToken(range: i.site, type: .number)
-      }
+      addExpr(a.value)
     }
   }
 
@@ -338,7 +332,7 @@ struct SemanticTokensWalker {
           addExpr(el.value)
         }
 
-      case let e as LambdaTypeExpr:
+      case let e as ArrowTypeExpr:
         addIntroducer(e.receiverEffect)
         addExpr(e.environment)
         for p in e.parameters {
@@ -370,7 +364,7 @@ struct SemanticTokensWalker {
         addConformances(e.traits)
         addWhereClause(e.whereClause)
 
-      case let e as RemoteExpr:
+      case let e as RemoteTypeExpr:
         addIntroducer(e.introducerSite)
         addIntroducer(e.convention)
         addExpr(e.operand)
@@ -378,7 +372,7 @@ struct SemanticTokensWalker {
       case let e as PragmaLiteralExpr:
         addToken(range: e.site, type: .identifier)
 
-      case let e as ConformanceLensTypeExpr:
+      case let e as ConformanceLensExpr:
         addExpr(e.subject, typeHint: .type)
         addExpr(e.lens, typeHint: .type)
 
@@ -462,7 +456,7 @@ struct SemanticTokensWalker {
     addAccessModifier(d.accessModifier)
     addIntroducer(d.introducerSite)
     addToken(range: d.identifier.site, type: .type)
-    addConformances(d.refinements)
+    addConformances(d.bounds)
     addMembers(d.members)
   }
 
@@ -655,7 +649,7 @@ struct SemanticTokensWalker {
         let n = ast[n]
         addToken(range: n.site, type: .type)
         addExpr(e)
-      case let .conformance(n, _):
+      case let .bound(n, _):
         let n = ast[n]
         addToken(range: n.site, type: .type)
       case let .value(e):

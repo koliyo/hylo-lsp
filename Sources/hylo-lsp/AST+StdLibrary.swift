@@ -1,10 +1,9 @@
-import Core
 import FrontEnd
 import Foundation
 
 extension AST {
   internal init(sourceFiles: [SourceFile]) throws {
-    self.init(for: CompilerConfiguration())
+    self.init(ConditionalCompilationFactors())
     var diagnostics = DiagnosticSet()
     coreLibrary = try makeModule(
       "Hylo",
@@ -12,7 +11,7 @@ extension AST {
       builtinModuleAccess: true,
       diagnostics: &diagnostics)
 
-    assert(isCoreModuleLoaded)
+    assert(coreModuleIsLoaded)
     self.coreTraits = .init(self)
   }
 
