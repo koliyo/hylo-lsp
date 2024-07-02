@@ -27,6 +27,11 @@ on:
         required: false
         type: string
 
+env:
+  spm-build-options: -Xswiftc -enable-testing --explicit-target-dependency-import-check error
+  spm-test-options: --parallel
+  swift-version: '5.10'
+
 jobs:
   build-devcontainer-linux:
     name: "Build and test: ${{ matrix.host.os }}/${{ inputs.build-type }}"
@@ -110,9 +115,6 @@ jobs:
             test-options: ""
           }
         ]
-        swift: [
-          { version: "5.10" }
-        ]
         # configuration: [ $BUILD_TYPE ]
         # configuration: [ "debug", "release" ]
 
@@ -124,9 +126,9 @@ jobs:
         submodules: 'true'
 
     - name: Setup swift
-      uses: swift-actions/setup-swift@v1
+      uses: SwiftyLab/setup-swift@latest
       with:
-        swift-version: ${{ matrix.swift.version }}
+        swift-version: ${{ env.swift-version }}
 
     - run: swift --version
 
