@@ -2,6 +2,14 @@
 
 All notable changes to the "hylo-lsp" extension will be documented in this file.
 
+## v0.6.11
+
+Bump hylo version
+
+## v0.6.10
+
+Bump hylo version
+
 ## v0.6.9
 
 Add shutdown handling
