@@ -37,7 +37,7 @@ RUN <<EOT bash -ex -o pipefail
 EOT
 
 # Make and install the llvm.pc file.
-ADD make-pkgconfig.sh /tmp
+ADD hylo/make-pkgconfig.sh /tmp
 RUN <<EOT bash -ex -o pipefail
 
     export PATH="/opt/llvm-${HYLO_LLVM_BUILD_TYPE}/bin:\$PATH"
