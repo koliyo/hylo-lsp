@@ -52,7 +52,7 @@ jobs:
       with:
         submodules: 'true'
 
-    - uses: actions/cache@v3
+    - uses: actions/cache@v4
       with:
         path: .build
         key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
@@ -98,7 +98,7 @@ jobs:
 
 
     - name: Upload Hylo LSP artifacts (${{ inputs.build-type }})
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: hylo-lsp-artifacts-linux
         path: |
@@ -154,7 +154,7 @@ jobs:
     #         https://github.com/apple/swift-package-manager/issues/6595" && false) )
 
     - name: Upload Hylo LSP artifacts (${{ inputs.build-type }})
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: hylo-lsp-artifacts-mac
         path: |
@@ -214,14 +214,14 @@ jobs:
     #     xcopy $BUILD_DIR artifacts /I
 
     - name: Upload Swift artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: hylo-lsp-artifacts-windows
         path: |
           C:\Program Files\Swift\runtime-development\usr\bin
 
     - name: Upload Hylo LSP artifacts (${{ inputs.build-type }})
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: hylo-lsp-artifacts-windows
         path: |
