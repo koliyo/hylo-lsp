@@ -111,7 +111,7 @@ jobs:
           }
         ]
         swift: [
-          { version: "5.9" }
+          { version: "5.10" }
         ]
         # configuration: [ $BUILD_TYPE ]
         # configuration: [ "debug", "release" ]
@@ -165,8 +165,8 @@ jobs:
     - name: Setup swift
       uses: compnerd/gha-setup-swift@main
       with:
-        branch: swift-5.9-release
-        tag: 5.9-RELEASE
+        branch: swift-5.10-release
+        tag: 5.10-RELEASE
 
     - uses: actions/checkout@v3
       with:
