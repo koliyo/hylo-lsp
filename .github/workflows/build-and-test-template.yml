@@ -69,6 +69,9 @@ jobs:
         username: ${{ github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
+    - name: devcontainer pre-setup
+      run: cp hylo/.devcontainer/make-pkgconfig.sh .devcontainer/
+
     - name: Build (${{ inputs.build-type }})
       uses: devcontainers/ci@v0.3
       with:
