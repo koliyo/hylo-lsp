@@ -238,7 +238,7 @@ public actor DocumentProvider {
     if !sourceFiles.isEmpty {
         let productName = "lsp-build"
         // let sourceFiles = try sourceFiles(in: inputs)
-      _ = try ast.makeModule(productName, sourceCode: sourceFiles, builtinModuleAccess: false, diagnostics: &diagnostics)
+      _ = try ast.loadModule(productName, parsing: sourceFiles, withBuiltinModuleAccess: false, reportingDiagnosticsTo: &diagnostics)
     }
 
     return ast

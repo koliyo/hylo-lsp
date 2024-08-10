@@ -5,11 +5,11 @@ extension AST {
   internal init(sourceFiles: [SourceFile]) throws {
     self.init(ConditionalCompilationFactors())
     var diagnostics = DiagnosticSet()
-    coreLibrary = try makeModule(
+    coreLibrary = try loadModule(
       "Hylo",
-      sourceCode: sourceFiles,
-      builtinModuleAccess: true,
-      diagnostics: &diagnostics)
+      parsing: sourceFiles,
+      withBuiltinModuleAccess: true,
+      reportingDiagnosticsTo: &diagnostics)
 
     assert(coreModuleIsLoaded)
     self.coreTraits = .init(self)
