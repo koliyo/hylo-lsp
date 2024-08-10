@@ -16,24 +16,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         submodules: 'true'
 
     - name: Download hylo-lsp-artifacts-mac
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: hylo-lsp-artifacts-mac
         path: hylo-lsp-mac-x64
 
     - name: Download hylo-lsp-artifacts-linux
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: hylo-lsp-artifacts-linux
         path: hylo-lsp-linux-x64
 
     - name: Download hylo-lsp-artifacts-windows
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: hylo-lsp-artifacts-windows
         path: hylo-lsp-windows-x64
