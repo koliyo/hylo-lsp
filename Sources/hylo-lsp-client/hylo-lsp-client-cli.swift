@@ -2,7 +2,6 @@ import Foundation
 import LanguageClient
 // import ProcessEnv
 import LanguageServerProtocol
-import LSPClient
 import JSONRPC
 #if !os(Windows)
 import UniSocket
@@ -14,7 +13,6 @@ import hylo_lsp
 import Puppy
 import SwiftLogConsoleColors
 
-import Core
 import FrontEnd
 
 #if !os(Windows)
@@ -261,7 +259,7 @@ extension DocumentCommand {
     for doc in docs {
       let td = try textDocument(doc.url)
       let docParams = DidOpenTextDocumentParams(textDocument: td)
-      try await server.textDocumentDidOpen(params: docParams)
+      try await server.textDocumentDidOpen(docParams)
       try await self.process(doc: doc, using: server)
     }
   }
@@ -277,7 +275,7 @@ extension HyloLspCommand {
 
       let params = DocumentSymbolParams(textDocument: TextDocumentIdentifier(uri: doc.uri))
 
-      let response = try await server.documentSymbol(params: params)
+      let response = try await server.documentSymbol(params)
 
       switch response {
         case nil:
@@ -341,7 +339,7 @@ extension HyloLspCommand {
 
       let params = TextDocumentPositionParams(uri: doc.uri, position: pos)
 
-      let definition = try await server.definition(params: params)
+      let definition = try await server.definition(params)
 
       switch definition {
         case nil:
@@ -381,7 +379,7 @@ extension HyloLspCommand {
 
     func process(doc: DocumentLocation, using server: ServerConnection) async throws {
       let params = DocumentDiagnosticParams(textDocument: TextDocumentIdentifier(uri: doc.uri))
-      let report = try await server.diagnostics(params: params)
+      let report = try await server.diagnostics(params)
       for d in report.items ?? [] {
         printDiagnostic(d, in: doc.filepath)
       }
@@ -411,7 +409,7 @@ extension HyloLspCommand {
     func process(doc: DocumentLocation, using server: ServerConnection) async throws {
 
       let params = SemanticTokensParams(textDocument: TextDocumentIdentifier(uri: doc.uri))
-      if let tokensData = try await server.semanticTokensFull(params: params) {
+      if let tokensData = try await server.semanticTokensFull(params) {
         var tokens = tokensData.decode()
 
         if let line = doc.line {
@@ -487,9 +485,9 @@ extension HyloLspCommand {
 
       let td = try textDocument(URL.init(fileURLWithPath: "hylo/Examples/factorial.hylo"))
       let docParams = DidOpenTextDocumentParams(textDocument: td)
-      try await server.textDocumentDidOpen(params: docParams)
+      try await server.textDocumentDidOpen(docParams)
 
-      try await server.setTrace(params: SetTraceParams(value: .off))
+      try await server.setTrace(SetTraceParams(value: .off))
       print("traced")
       try await server.shutdownAndExit()
       print("Sent shutdown")

@@ -1,5 +1,5 @@
 import LanguageServerProtocol
-import Core
+import FrontEnd
 
 public extension LanguageServerProtocol.Location {
   init(_ range: SourceRange) {
@@ -9,18 +9,7 @@ public extension LanguageServerProtocol.Location {
 
 public extension LanguageServerProtocol.LSPRange {
   init(_ range: SourceRange) {
-    let first = range.first()
-    let last: SourcePosition
-
-    if let l = range.last() {
-      let incLast = range.file.text.index(after: l.index)
-      last = SourcePosition(incLast, in: l.file)
-    }
-    else {
-      last = SourcePosition(range.file.text.endIndex, in: range.file)
-    }
-
-    self.init(start: Position(first), end: Position(last))
+    self.init(start: Position(range.start), end: Position(range.end))
   }
 }
 

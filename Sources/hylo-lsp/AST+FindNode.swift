@@ -1,4 +1,3 @@
-import Core
 import FrontEnd
 
 extension AST {
@@ -32,12 +31,12 @@ extension AST {
 
       // logger.debug("Enter: \(site), id: \(n)")
 
-      if site.start > query.index {
+      if site.startIndex > query.index {
         return false
       }
 
       // We have a match, but nested children may be more specific
-      if site.end >= query.index {
+      if site.endIndex >= query.index {
         match = n
         // logger.debug("Found match: \(n)")
         return true

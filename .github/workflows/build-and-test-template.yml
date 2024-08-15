@@ -27,6 +27,11 @@ on:
         required: false
         type: string
 
+env:
+  spm-build-options: -Xswiftc -enable-testing --explicit-target-dependency-import-check error
+  spm-test-options: --parallel
+  swift-version: '5.10'
+
 jobs:
   build-devcontainer-linux:
     name: "Build and test: ${{ matrix.host.os }}/${{ inputs.build-type }}"
@@ -43,11 +48,11 @@ jobs:
 
     runs-on: ${{ matrix.host.os }}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: 'true'
 
-    - uses: actions/cache@v3
+    - uses: actions/cache@v4
       with:
         path: .build
         key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
@@ -63,6 +68,9 @@ jobs:
         registry: ghcr.io
         username: ${{ github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: devcontainer pre-setup
+      run: cp hylo/.devcontainer/make-pkgconfig.sh .devcontainer/
 
     - name: Build (${{ inputs.build-type }})
       uses: devcontainers/ci@v0.3
@@ -90,7 +98,7 @@ jobs:
 
 
     - name: Upload Hylo LSP artifacts (${{ inputs.build-type }})
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: hylo-lsp-artifacts-linux
         path: |
@@ -110,23 +118,20 @@ jobs:
             test-options: ""
           }
         ]
-        swift: [
-          { version: "5.9" }
-        ]
         # configuration: [ $BUILD_TYPE ]
         # configuration: [ "debug", "release" ]
 
     runs-on: ${{ matrix.host.os }}
     steps:
     - name: Checkout
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         submodules: 'true'
 
     - name: Setup swift
-      uses: swift-actions/setup-swift@v1
+      uses: SwiftyLab/setup-swift@latest
       with:
-        swift-version: ${{ matrix.swift.version }}
+        swift-version: ${{ env.swift-version }}
 
     - run: swift --version
 
@@ -149,7 +154,7 @@ jobs:
     #         https://github.com/apple/swift-package-manager/issues/6595" && false) )
 
     - name: Upload Hylo LSP artifacts (${{ inputs.build-type }})
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: hylo-lsp-artifacts-mac
         path: |
@@ -165,10 +170,10 @@ jobs:
     - name: Setup swift
       uses: compnerd/gha-setup-swift@main
       with:
-        branch: swift-5.9-release
-        tag: 5.9-RELEASE
+        branch: swift-5.10-release
+        tag: 5.10-RELEASE
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: 'true'
 
@@ -209,14 +214,14 @@ jobs:
     #     xcopy $BUILD_DIR artifacts /I
 
     - name: Upload Swift artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: hylo-lsp-artifacts-windows
         path: |
           C:\Program Files\Swift\runtime-development\usr\bin
 
     - name: Upload Hylo LSP artifacts (${{ inputs.build-type }})
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: hylo-lsp-artifacts-windows
         path: |

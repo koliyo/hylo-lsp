@@ -1,18 +1,17 @@
-import Core
 import FrontEnd
 import Foundation
 
 extension AST {
   internal init(sourceFiles: [SourceFile]) throws {
-    self.init(for: CompilerConfiguration())
+    self.init(ConditionalCompilationFactors())
     var diagnostics = DiagnosticSet()
-    coreLibrary = try makeModule(
+    coreLibrary = try loadModule(
       "Hylo",
-      sourceCode: sourceFiles,
-      builtinModuleAccess: true,
-      diagnostics: &diagnostics)
+      parsing: sourceFiles,
+      withBuiltinModuleAccess: true,
+      reportingDiagnosticsTo: &diagnostics)
 
-    assert(isCoreModuleLoaded)
+    assert(coreModuleIsLoaded)
     self.coreTraits = .init(self)
   }
 
