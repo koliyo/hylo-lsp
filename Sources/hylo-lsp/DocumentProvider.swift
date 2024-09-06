@@ -122,7 +122,7 @@ public actor DocumentProvider {
       return URL(fileURLWithPath: path)
     }
     else {
-      return StandardLibrary.freestandingLibrarySourceRoot
+      return StandardLibrary.hostedLibrarySourceRoot
     }
   }
 
@@ -214,6 +214,7 @@ public actor DocumentProvider {
       }
     }
 
+    // logger.info("Build stdlib with files: \(sourceFiles)")
     return try AST(sourceFiles: sourceFiles)
   }
 
@@ -246,9 +247,10 @@ public actor DocumentProvider {
 
   private func buildProgram(uri: DocumentUri, ast: AST) throws -> AnalyzedDocument {
     // let inputs = files.map { URL.init(fileURLWithPath: $0)}
-    let compileSequentially = false
+    let compileSequentially = true
 
     var diagnostics = DiagnosticSet()
+    logger.warning("Build program...")
 
     let t0 = Date()
     let p = try TypedProgram(
