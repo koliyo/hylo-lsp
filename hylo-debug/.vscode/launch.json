@@ -1,0 +1,28 @@
+{
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "sourceLanguages": [
+        "swift"
+      ],
+      "args": [],
+      "cwd": "${workspaceFolder:hylo-debug}",
+      "name": "Debug hylo-debug",
+      "program": "${workspaceFolder:hylo-debug}/.build/debug/hylo-debug",
+      "preLaunchTask": "swift: Build Debug hylo-debug"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "sourceLanguages": [
+        "swift"
+      ],
+      "args": [],
+      "cwd": "${workspaceFolder:hylo-debug}",
+      "name": "Release hylo-debug",
+      "program": "${workspaceFolder:hylo-debug}/.build/release/hylo-debug",
+      "preLaunchTask": "swift: Build Release hylo-debug"
+    }
+  ]
+}
