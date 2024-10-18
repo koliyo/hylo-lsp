@@ -30,10 +30,10 @@ on:
 env:
   spm-build-options: -Xswiftc -enable-testing --explicit-target-dependency-import-check error
   spm-test-options: --parallel
-  swift-version: '5.10'
+  swift-version: '6.0'
 
 jobs:
-  build-devcontainer-linux:
+  build-linux:
     name: "Build and test: ${{ matrix.host.os }}/${{ inputs.build-type }}"
     strategy:
       fail-fast: false
@@ -52,42 +52,20 @@ jobs:
       with:
         submodules: 'true'
 
-    - uses: actions/cache@v4
+    - name: Setup swift
+      uses: SwiftyLab/setup-swift@latest
       with:
-        path: .build
-        key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
-        restore-keys: |
-          ${{ runner.os }}-spm-
+        swift-version: ${{ env.swift-version }}
 
-    - name: Create artifact directory
-      run: mkdir -p /home/runner/work/hylo-lsp/hylo-lsp/artifacts
-
-    - name: Login to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.repository_owner }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: devcontainer pre-setup
-      run: cp hylo/.devcontainer/make-pkgconfig.sh .devcontainer/
+    - run: swift --version
 
     - name: Build (${{ inputs.build-type }})
-      uses: devcontainers/ci@v0.3
-      with:
-        imageName: ghcr.io/koliyo/hylo-lsp-swift-devcontainer
-        cacheFrom: ghcr.io/koliyo/hylo-lsp-swift-devcontainer
-        runCmd: |
-          set -eo pipefail
-          swift build -c ${{ inputs.build-type }} ${{ matrix.host.build-options }}
-          BUILD_DIR=$(swift build -c ${{ inputs.build-type }} --show-bin-path)
-          echo "BUILD_DIR=$BUILD_DIR" >> $GITHUB_ENV
-          cp $BUILD_DIR/hylo-lsp-client $BUILD_DIR/hylo-lsp-server /artifacts/
-          # swift test -c ${{ inputs.build-type }} ${{ matrix.host.test-options }} |
-          #   tee testoutput.txt && (
-          #     (grep -q "[.']EndToEndTests[/. ]test_" testoutput.txt && grep -q "[.']HyloTests[/. ]test_" testoutput.txt) ||
-          #     (echo "error: generated tests failed to run; see
-          #     https://github.com/apple/swift-package-manager/issues/6595" && false) )
+      id: build
+      run: |
+        set -eo pipefail
+        swift build -c ${{ inputs.build-type }} ${{ matrix.host.build-options }}
+        BUILD_DIR=$(swift build -c ${{ inputs.build-type }} --show-bin-path)
+        echo "BUILD_DIR=$BUILD_DIR" >> $GITHUB_ENV
 
     # - name: Check code coverage
     #   uses: mattpolzin/swift-codecov-action@0.7.3
@@ -170,8 +148,8 @@ jobs:
     - name: Setup swift
       uses: compnerd/gha-setup-swift@main
       with:
-        branch: swift-5.10-release
-        tag: 5.10-RELEASE
+        branch: swift-${{ env.swift-version }}-release
+        tag: ${{ env.swift-version }}-RELEASE
 
     - uses: actions/checkout@v4
       with:
