@@ -24,6 +24,28 @@ extension Bool {
 extension Logger.Level: @retroactive ExpressibleByArgument {
 }
 
+func forceLineBuffering() {
+#if !os(Windows)
+  #if os(Linux)
+  /**
+TODO: Fix this error:
+/home/runner/work/hylo-lsp/hylo-lsp/Sources/hylo-lsp-server/hylo-lsp-server-cli.swift:31:11: error: reference to var 'stderr' is not concurrency-safe because it involves shared mutable state
+ 29 | #if !os(Windows)
+ 30 |   setvbuf(stdout, nil, _IOLBF, 0)
+ 31 |   setvbuf(stderr, nil, _IOLBF, 0)
+    |           `- error: reference to var 'stderr' is not concurrency-safe because it involves shared mutable state
+ 32 | #endif
+ 33 | }
+SwiftGlibc.stderr:1:12: note: var declared here
+1 | public var stderr: UnsafeMutablePointer<FILE>!
+|            `- note: var declared here
+*/
+  #else
+  setvbuf(stdout, nil, _IOLBF, 0)
+  setvbuf(stderr, nil, _IOLBF, 0)
+  #endif
+#endif
+}
 
 @main
 struct HyloLspCommand: AsyncParsableCommand {
@@ -95,13 +117,7 @@ struct HyloLspCommand: AsyncParsableCommand {
     }
 
     func run() async throws {
-
-        #if !os(Windows)
-        // Force line buffering
-        setvbuf(stdout, nil, _IOLBF, 0)
-        setvbuf(stderr, nil, _IOLBF, 0)
-        #endif
-
+        forceLineBuffering()
         let logFileURL = URL(fileURLWithPath: logFile)
         // let fileLogger = try FileLogging(to: logFileURL)
         let fileLogger = try FileLogger("hylo-lsp",
