@@ -20,7 +20,7 @@ import RegexBuilder
 #endif
 
 // Allow loglevel as `ArgumentParser.Option`
-extension Logger.Level : ExpressibleByArgument {
+extension Logger.Level : @retroactive ExpressibleByArgument {
 }
 
 // let pipePath = "/tmp/my.sock"
@@ -141,8 +141,7 @@ struct Options: ParsableArguments {
 // https://swiftpackageindex.com/apple/swift-argument-parser/1.2.3/documentation/argumentparser/commandsandsubcommands
 @main
 struct HyloLspCommand: AsyncParsableCommand {
-
-    static var configuration = CommandConfiguration(
+    static let configuration = CommandConfiguration(
         abstract: "HyloLSP command line client",
         subcommands: [
           SemanticToken.self,

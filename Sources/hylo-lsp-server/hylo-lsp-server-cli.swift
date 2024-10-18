@@ -1,6 +1,6 @@
 import Foundation
 // import ProcessEnv
-import LanguageServerProtocol
+// import LanguageServerProtocol
 import JSONRPC
 // import JSONRPC_DataChannel_StdioPipe
 import ArgumentParser
@@ -21,14 +21,14 @@ extension Bool {
 }
 
 // Allow loglevel as `ArgumentParser.Option`
-extension Logger.Level : ExpressibleByArgument {
+extension Logger.Level: @retroactive ExpressibleByArgument {
 }
 
 
 @main
 struct HyloLspCommand: AsyncParsableCommand {
 
-    static var configuration = CommandConfiguration(commandName: "hylo-lsp-server")
+    static let configuration = CommandConfiguration(commandName: "hylo-lsp-server")
 
     @Option(help: "Log level")
     var log: Logger.Level = Logger.Level.debug

@@ -1,4 +1,4 @@
-// swift-tools-version: 5.8
+// swift-tools-version: 6.0
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -39,10 +39,11 @@ let package = Package(
     .package(url: "https://github.com/koliyo/LanguageServer", branch: "main"),
     .package(url: "https://github.com/ChimeHQ/LanguageClient", from: "0.8.0"),
     .package(url: "https://github.com/nneuberger1/swift-log-console-colors.git", from: "1.0.3"),
+    .package(url: "https://github.com/ChimeHQ/JSONRPC", from: "0.9.0"),
     // .package(url: "https://github.com/ChimeHQ/ProcessEnv", from: "1.0.0"),
     // .package(url: "https://github.com/seznam/swift-unisocket", from: "0.14.0"),
     // .package(path: "./LanguageServerProtocol"),
-    // .package(path: "./LanguageClient"),
+    // .package(path: "../misc/LanguageServer"),
     // .package(name: "UniSocket", path: "./swift-unisocket"),
     // .package(path: "./swift-unisocket"),
     .package(path: "./JSONRPC-DataChannel-UniSocket"),

@@ -1,4 +1,5 @@
 {
+  "originHash" : "43bd68c5f7ef61d15d973feb813552ec65f20bb9f3a83003b8c7f339188f4851",
   "pins" : [
     {
       "identity" : "bigint",
@@ -172,5 +173,5 @@
       }
     }
   ],
-  "version" : 2
+  "version" : 3
 }
